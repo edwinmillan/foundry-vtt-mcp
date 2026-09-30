@@ -36,6 +36,8 @@ const [
   { FateUpdateCharacterTools },
   { FateRollTools },
   { FateAspectTools },
+  { AbfUpdateCharacterTools },
+  { AbfRollTools },
   { getSystemRegistry },
   { DnD5eAdapter },
   { PF2eAdapter },
@@ -57,6 +59,8 @@ const [
   importDist('tools/fate/update-character.js'),
   importDist('tools/fate/roll.js'),
   importDist('tools/fate/aspects.js'),
+  importDist('tools/abfalter/update-character.js'),
+  importDist('tools/abfalter/roll.js'),
   importDist('systems/index.js'),
   importDist('systems/dnd5e/adapter.js'),
   importDist('systems/pf2e/adapter.js'),
@@ -86,6 +90,8 @@ const tools = [
   ...new FateUpdateCharacterTools({ foundryClient, logger }).getToolDefinitions(),
   ...new FateRollTools({ foundryClient, logger }).getToolDefinitions(),
   ...new FateAspectTools({ foundryClient, logger }).getToolDefinitions(),
+  ...new AbfUpdateCharacterTools({ foundryClient, logger }).getToolDefinitions(),
+  ...new AbfRollTools({ foundryClient, logger }).getToolDefinitions(),
 ];
 
 if (!tools.length) {

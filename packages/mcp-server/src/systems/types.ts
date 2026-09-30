@@ -19,6 +19,7 @@ export type SystemId =
   | 'wfrp4e'
   | 'mgt2e'
   | 'fate-core-official'
+  | 'abfalter'
   | 'other';
 
 /**

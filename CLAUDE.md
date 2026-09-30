@@ -52,7 +52,7 @@ So a new capability usually spans: a tool class + `backend.ts` wiring (server) a
 
 ### Game-system support
 
-- Server side: `src/systems/<system>/adapter.ts` implements `SystemAdapter` (`systems/types.ts`) for filters, creature formatting, power level, character stats. Adapters are registered in `backend.ts` into the `SystemRegistry`. Supported: dnd5e, pf2e, dsa5, cosmere-rpg, wfrp4e, mgt2e, fate-core-official. A new system id must also be added to `SystemId` (`systems/types.ts`) and to `GameSystem` + `detectGameSystem` (`utils/system-detection.ts`), or `manage-actors` won't find its adapter. The module's enhanced creature index is built per system inside `data-access.ts` (`buildEnhancedIndex`); the `systems/*/index-builder.ts` files are not used at runtime.
+- Server side: `src/systems/<system>/adapter.ts` implements `SystemAdapter` (`systems/types.ts`) for filters, creature formatting, power level, character stats. Adapters are registered in `backend.ts` into the `SystemRegistry`. Supported: dnd5e, pf2e, dsa5, cosmere-rpg, wfrp4e, mgt2e, fate-core-official, abfalter (Anima Beyond Fantasy). A new system id must also be added to `SystemId` (`systems/types.ts`) and to `GameSystem` + `detectGameSystem` (`utils/system-detection.ts`), or `manage-actors` won't find its adapter. The module's enhanced creature index is built per system inside `data-access.ts` (`buildEnhancedIndex`); the `systems/*/index-builder.ts` files are not used at runtime.
 - System-exclusive tools live under `src/tools/<system>/` (e.g. `dnd5e/`, `wfrp4e/`) and in `systems/dsa5/character-creator.ts`.
 - Most tools are system-agnostic and should stay that way; put system specifics in the adapter.
 

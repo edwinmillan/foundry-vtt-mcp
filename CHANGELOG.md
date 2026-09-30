@@ -1,3 +1,14 @@
+## Unreleased
+
+### New Features
+
+- **Anima Beyond Fantasy support** via the [abfalter](https://github.com/Lumenita/abfalter) system
+  - `get-character` reports level, class, characteristics (value and modifier), resistances, attack/block/dodge/initiative, life points and fatigue, developed secondary abilities, magic (zeon, projection, accumulation), psychic (potential, projection, psychic points), ki (unified or per-characteristic pools, martial knowledge), and items grouped by kind (weapons, advantages/disadvantages, spells, ki techniques…)
+  - `abf-update-character`: set or adjust life points, fatigue, zeon, ki, psychic points, shield and mental health; per-characteristic ki pools; the all-action modifier; characteristic, secondary ability and combat base values (reporting the recomputed totals); experience, info fields, currency and biography
+  - `abf-roll`: rolls as the sheet does — open d100 rolls and fumbles (respecting the world's corrected open-roll/fumble/initiative settings and the actor's open range, fumble range, doubles and roll limits), 1d10 characteristic checks, and resistance checks; reports pass/fail against a difficulty (number or name, Routine … Zen) and, for attack/block/dodge with an opposing total, the damage percentage and damage dealt or the counterattack bonus. Weapons supply their profile totals, damage, AT penetration and ranges
+  - `request-player-rolls` builds Anima formulas (ability = characteristic, skill = secondary ability, save = resistance, attack, initiative)
+  - Writes respect the Allow Write Operations setting
+
 ## v0.10.1 (2026-09-29)
 
 ### Fixes
