@@ -1,6 +1,6 @@
 # Foundry VTT MCP Bridge
 
-Connect Foundry VTT to Claude Desktop for AI-powered campaign management through the Model Context Protocol (MCP). It currently supports Dungeons and Dragons Fifth Edition, Pathfinder Second Edition, Das Schwarze Augen Fifth Edition, Cosmere RPG System, Warhammer Fantasy Roleplay 4th Edition, & Mongoose Traveller 2nd Edition. The majority of MCP tools are system agnostic or have features that are aware of the system it is working with, excluding some DSA 5 specific tools.
+Connect Foundry VTT to Claude Desktop for AI-powered campaign management through the Model Context Protocol (MCP). It currently supports Dungeons and Dragons Fifth Edition, Pathfinder Second Edition, Das Schwarze Augen Fifth Edition, Cosmere RPG System, Warhammer Fantasy Roleplay 4th Edition, Mongoose Traveller 2nd Edition, & Fate Core Official (Fate Core / Condensed / Accelerated). The majority of MCP tools are system agnostic or have features that are aware of the system it is working with, excluding some DSA 5 specific tools.
 
 ## Overview
 
@@ -86,9 +86,10 @@ Once connected, ask Claude Desktop:
 
 ## Features
 
-- **45 MCP Tools** that allow Claude to interact with Foundry
+- **48 MCP Tools** that allow Claude to interact with Foundry
 - **D&D 5e NPC Creation Suite**: Build complete NPCs from prompts — stat block, attacks, saves, auras, and spellcasting
 - **Mongoose Traveller 2e (mgt2e) Support**: Full actor lifecycle — create/update/delete travellers, NPCs, creatures, and spacecraft with skill shorthand normalisation; creature compendium index with characteristic DMs; weapon-trait enum reference
+- **Fate Core Official Support**: Read aspects, skills on the Fate ladder, stunts, stress, consequences and fate points; edit all of them on existing characters; roll 4dF + skill (with stunts, invokes and a difficulty for shifts and outcome); and manage situation and game aspects with free invokes in Fate Utilities
 - **WFRP4e Support**: Character reading plus editing — update characteristics, wounds, skills and careers, and add or remove items on existing actors
 - **Generic Actor CRUD**: `manage-actors` creates, updates, and deletes actors of any type on any system; also updates and deletes embedded items
 - **Character Management**: Access stats, abilities, inventory, and detailed entity information
@@ -149,6 +150,9 @@ Once connected, ask Claude Desktop:
 - **43** manage-actors (create / update / delete / place actors; update / delete embedded items — any system)
 - **44** wfrp4e-update-actor (WFRP4e Only)
 - **45** wfrp4e-add-items (WFRP4e Only)
+- **46** fate-update-character (Fate Core Official Only)
+- **47** fate-roll (Fate Core Official Only)
+- **48** fate-manage-aspects (Fate Core Official Only)
 
 ## Settings
 

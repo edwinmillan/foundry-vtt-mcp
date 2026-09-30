@@ -11,7 +11,15 @@ import { z } from 'zod';
  * Supported game system identifiers
  * Extend this type when adding new systems
  */
-export type SystemId = 'dnd5e' | 'pf2e' | 'dsa5' | 'cosmere-rpg' | 'wfrp4e' | 'mgt2e' | 'other';
+export type SystemId =
+  | 'dnd5e'
+  | 'pf2e'
+  | 'dsa5'
+  | 'cosmere-rpg'
+  | 'wfrp4e'
+  | 'mgt2e'
+  | 'fate-core-official'
+  | 'other';
 
 /**
  * System metadata returned by adapters
