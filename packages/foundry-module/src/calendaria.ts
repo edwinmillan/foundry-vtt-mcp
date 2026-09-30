@@ -407,28 +407,29 @@ export class CalendariaAccess {
         if (!data.name) throw new Error('create needs a name');
         const startDate = timed(data.startDate, today) ?? today;
         const endDate = timed(data.endDate, startDate);
-        const page = await api.createNote({
-          name: data.name,
-          content: data.content ?? '',
+        const noteData = {
           startDate,
           endDate,
           allDay: data.allDay ?? startDate.hour === undefined,
           visibility: data.visibility ?? 'visible',
+          categories: data.categories ?? [],
+        };
+        const page = await api.createNote({
+          name: data.name,
+          content: data.content ?? '',
+          ...noteData,
           ...(data.color ? { color: data.color } : {}),
           ...(data.icon ? { icon: data.icon } : {}),
-          categories: data.categories ?? [],
           openSheet: false,
         });
         if (!page) return fail('Calendaria did not create the note');
-        return {
-          success: true,
-          note: {
-            id: page.id,
-            name: page.name,
-            start: this.describeDate(calendar, startDate),
-            end: this.describeDate(calendar, endDate),
-          },
+        // Describe the note as Calendaria indexed it, or as sent if the index lags.
+        const created = api.getNote(page.id) ?? {
+          id: page.id,
+          name: page.name,
+          flagData: noteData,
         };
+        return { success: true, note: this.describeNote(calendar, created) };
       }
       case 'update': {
         if (!data.note) throw new Error('update needs a note (id or name)');

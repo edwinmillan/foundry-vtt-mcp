@@ -261,6 +261,29 @@ describe('CalendariaAccess.manageNotes', () => {
     expect(result.note.id).toBe('n2');
   });
 
+  it('reports the time of a timed note it created', async () => {
+    const { access, api, notes } = setup();
+    const created = await access.manageNotes({
+      action: 'create',
+      name: 'Ambush',
+      startDate: { day: 11, hour: 14, minute: 30 },
+      visibility: 'secret',
+    });
+    // Not yet in Calendaria's index: described from what was sent.
+    expect(created.note).toMatchObject({
+      id: 'n2',
+      start: { monthName: 'Hammer', day: 11, time: '14:30' },
+      allDay: false,
+      visibility: 'secret',
+    });
+
+    // Indexed: described from Calendaria's copy.
+    notes.push({ ...notes[0], id: 'n2', name: 'Ambush' });
+    api.createNote.mockResolvedValueOnce({ id: 'n2', name: 'Ambush' });
+    const indexed = await access.manageNotes({ action: 'create', name: 'Ambush' });
+    expect(indexed.note).toMatchObject({ id: 'n2', start: { time: '18:00' }, journalId: 'j1' });
+  });
+
   it('updates and deletes by id', async () => {
     const { access, api } = setup();
     await access.manageNotes({ action: 'update', note: 'n1', startDate: { day: 14 } });
