@@ -34,7 +34,7 @@ export class DiceRollTools {
             rollTarget: {
               type: 'string',
               description:
-                'Target for the roll - can be ability name (str, dex, con, int, wis, cha), skill name (perception, insight, stealth, etc.), or custom roll formula. In Fate Core Official worlds use rollType "skill" with the Fate skill name (e.g. "Notice"); the roll is 4dF + skill rank.',
+                'Target for the roll - can be ability name (str, dex, con, int, wis, cha), skill name (perception, insight, stealth, etc.), or custom roll formula. In Fate Core Official worlds use rollType "skill" with the Fate skill name (e.g. "Notice"); the roll is 4dF + skill rank. In Anima (abfalter) worlds: ability = characteristic (1d10 + value), skill = secondary ability (e.g. "Notice"), save = resistance (PhR, MR…), attack, and initiative (1d100 + value); open rolls and fumbles are not chained, so prefer abf-roll for NPCs.',
             },
             targetPlayer: {
               type: 'string',

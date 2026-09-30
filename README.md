@@ -1,6 +1,6 @@
 # Foundry VTT MCP Bridge
 
-Connect Foundry VTT to Claude Desktop for AI-powered campaign management through the Model Context Protocol (MCP). It currently supports Dungeons and Dragons Fifth Edition, Pathfinder Second Edition, Das Schwarze Augen Fifth Edition, Cosmere RPG System, Warhammer Fantasy Roleplay 4th Edition, Mongoose Traveller 2nd Edition, & Fate Core Official (Fate Core / Condensed / Accelerated). The majority of MCP tools are system agnostic or have features that are aware of the system it is working with, excluding some DSA 5 specific tools.
+Connect Foundry VTT to Claude Desktop for AI-powered campaign management through the Model Context Protocol (MCP). It currently supports Dungeons and Dragons Fifth Edition, Pathfinder Second Edition, Das Schwarze Augen Fifth Edition, Cosmere RPG System, Warhammer Fantasy Roleplay 4th Edition, Mongoose Traveller 2nd Edition, Fate Core Official (Fate Core / Condensed / Accelerated), & Anima Beyond Fantasy (abfalter). The majority of MCP tools are system agnostic or have features that are aware of the system it is working with, excluding some DSA 5 specific tools.
 
 ## Overview
 
@@ -86,10 +86,11 @@ Once connected, ask Claude Desktop:
 
 ## Features
 
-- **48 MCP Tools** that allow Claude to interact with Foundry
+- **54 MCP Tools** that allow Claude to interact with Foundry
 - **D&D 5e NPC Creation Suite**: Build complete NPCs from prompts — stat block, attacks, saves, auras, and spellcasting
 - **Mongoose Traveller 2e (mgt2e) Support**: Full actor lifecycle — create/update/delete travellers, NPCs, creatures, and spacecraft with skill shorthand normalisation; creature compendium index with characteristic DMs; weapon-trait enum reference
 - **Fate Core Official Support**: Read aspects, skills on the Fate ladder, stunts, stress, consequences and fate points; edit all of them on existing characters; roll 4dF + skill (with stunts, invokes and a difficulty for shifts and outcome); and manage situation and game aspects with free invokes in Fate Utilities
+- **Anima Beyond Fantasy (abfalter) Support**: Read characteristics, resistances, combat values, life points, fatigue, secondary abilities, and magic/psychic/ki blocks; track resources and edit base values on existing characters; and roll with the system's rules (open rolls, fumbles, characteristic d10 checks, resistance checks, difficulty ladder) including attack-vs-defense resolution with damage percentage or counterattack bonus
 - **Calendaria Integration**: When the [Calendaria](https://github.com/Sayshal/Calendaria) module is active, read the in-world date, time, season, moons and weather; advance or set time; manage calendar notes; and set or forecast weather
 - **WFRP4e Support**: Character reading plus editing — update characteristics, wounds, skills and careers, and add or remove items on existing actors
 - **Generic Actor CRUD**: `manage-actors` creates, updates, and deletes actors of any type on any system; also updates and deletes embedded items
@@ -158,6 +159,8 @@ Once connected, ask Claude Desktop:
 - **50** calendaria-change-time (advance / set / advance-to / start-clock / stop-clock — Requires Calendaria)
 - **51** calendaria-manage-notes (list / search / get / create / update / delete — Requires Calendaria)
 - **52** calendaria-manage-weather (get / forecast / presets / set / generate / clear — Requires Calendaria)
+- **53** abf-update-character (Anima Beyond Fantasy / abfalter Only)
+- **54** abf-roll (Anima Beyond Fantasy / abfalter Only)
 
 ## Settings
 
