@@ -1,3 +1,9 @@
+## v0.10.1 (2026-09-29)
+
+### Fixes
+
+- `calendaria-manage-notes` create now replies with the full note (time, all-day, visibility), the same as `get`
+
 ## v0.10.0 (2026-09-29)
 
 ### New Features
