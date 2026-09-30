@@ -90,6 +90,7 @@ Once connected, ask Claude Desktop:
 - **D&D 5e NPC Creation Suite**: Build complete NPCs from prompts — stat block, attacks, saves, auras, and spellcasting
 - **Mongoose Traveller 2e (mgt2e) Support**: Full actor lifecycle — create/update/delete travellers, NPCs, creatures, and spacecraft with skill shorthand normalisation; creature compendium index with characteristic DMs; weapon-trait enum reference
 - **Fate Core Official Support**: Read aspects, skills on the Fate ladder, stunts, stress, consequences and fate points; edit all of them on existing characters; roll 4dF + skill (with stunts, invokes and a difficulty for shifts and outcome); and manage situation and game aspects with free invokes in Fate Utilities
+- **Calendaria Integration**: When the [Calendaria](https://github.com/Sayshal/Calendaria) module is active, read the in-world date, time, season, moons and weather; advance or set time; manage calendar notes; and set or forecast weather
 - **WFRP4e Support**: Character reading plus editing — update characteristics, wounds, skills and careers, and add or remove items on existing actors
 - **Generic Actor CRUD**: `manage-actors` creates, updates, and deletes actors of any type on any system; also updates and deletes embedded items
 - **Character Management**: Access stats, abilities, inventory, and detailed entity information
@@ -153,6 +154,10 @@ Once connected, ask Claude Desktop:
 - **46** fate-update-character (Fate Core Official Only)
 - **47** fate-roll (Fate Core Official Only)
 - **48** fate-manage-aspects (Fate Core Official Only)
+- **49** calendaria-get-date (Requires Calendaria)
+- **50** calendaria-change-time (advance / set / advance-to / start-clock / stop-clock — Requires Calendaria)
+- **51** calendaria-manage-notes (list / search / get / create / update / delete — Requires Calendaria)
+- **52** calendaria-manage-weather (get / forecast / presets / set / generate / clear — Requires Calendaria)
 
 ## Settings
 

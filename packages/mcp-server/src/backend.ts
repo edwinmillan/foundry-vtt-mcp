@@ -37,6 +37,7 @@ import { WFRP4eAddItemsTools } from './tools/wfrp4e/add-items.js';
 import { FateUpdateCharacterTools } from './tools/fate/update-character.js';
 import { FateRollTools } from './tools/fate/roll.js';
 import { FateAspectTools } from './tools/fate/aspects.js';
+import { CalendariaTools } from './tools/calendaria.js';
 
 import { TokenManipulationTools } from './tools/token-manipulation.js';
 
@@ -234,6 +235,8 @@ async function startBackend(): Promise<void> {
   const fateRollTools = new FateRollTools({ foundryClient, logger });
   const fateAspectTools = new FateAspectTools({ foundryClient, logger });
 
+  const calendariaTools = new CalendariaTools({ foundryClient, logger });
+
   const allTools = [
     ...characterTools.getToolDefinitions(),
 
@@ -266,6 +269,8 @@ async function startBackend(): Promise<void> {
     ...fateUpdateCharacterTools.getToolDefinitions(),
     ...fateRollTools.getToolDefinitions(),
     ...fateAspectTools.getToolDefinitions(),
+
+    ...calendariaTools.getToolDefinitions(),
 
     ...tokenManipulationTools.getToolDefinitions(),
 
@@ -421,6 +426,28 @@ async function startBackend(): Promise<void> {
 
                 case 'fate-manage-aspects':
                   result = await fateAspectTools.handleManageAspects(args);
+
+                  break;
+
+                // Calendaria module tools
+
+                case 'calendaria-get-date':
+                  result = await calendariaTools.handleGetDate(args);
+
+                  break;
+
+                case 'calendaria-change-time':
+                  result = await calendariaTools.handleChangeTime(args);
+
+                  break;
+
+                case 'calendaria-manage-notes':
+                  result = await calendariaTools.handleManageNotes(args);
+
+                  break;
+
+                case 'calendaria-manage-weather':
+                  result = await calendariaTools.handleManageWeather(args);
 
                   break;
 
