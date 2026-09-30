@@ -1,11 +1,14 @@
 import { MODULE_ID } from './constants.js';
 import { FoundryDataAccess } from './data-access.js';
+import { CalendariaAccess } from './calendaria.js';
 
 export class QueryHandlers {
   public dataAccess: FoundryDataAccess;
+  private calendaria: CalendariaAccess;
 
   constructor() {
     this.dataAccess = new FoundryDataAccess();
+    this.calendaria = new CalendariaAccess();
   }
 
   /**
@@ -98,6 +101,16 @@ export class QueryHandlers {
       this.handleUpdateFateCharacter.bind(this);
     CONFIG.queries[`${modulePrefix}.rollFateSkill`] = this.handleRollFateSkill.bind(this);
     CONFIG.queries[`${modulePrefix}.manageFateAspects`] = this.handleManageFateAspects.bind(this);
+
+    // Calendaria module queries
+    CONFIG.queries[`${modulePrefix}.getCalendariaStatus`] =
+      this.handleGetCalendariaStatus.bind(this);
+    CONFIG.queries[`${modulePrefix}.changeCalendariaTime`] =
+      this.handleChangeCalendariaTime.bind(this);
+    CONFIG.queries[`${modulePrefix}.manageCalendariaNotes`] =
+      this.handleManageCalendariaNotes.bind(this);
+    CONFIG.queries[`${modulePrefix}.manageCalendariaWeather`] =
+      this.handleManageCalendariaWeather.bind(this);
 
     // Token manipulation queries
     CONFIG.queries[`${modulePrefix}.moveToken`] = this.handleMoveToken.bind(this);
@@ -997,6 +1010,86 @@ export class QueryHandlers {
     } catch (error) {
       throw new Error(
         `Failed to manage Fate aspects: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Read the Calendaria date, time, moons, season and weather. GM-only.
+   */
+  async handleGetCalendariaStatus(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      return await this.calendaria.getStatus(data ?? {});
+    } catch (error) {
+      throw new Error(
+        `Failed to get Calendaria status: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Advance or set Calendaria time, or start/stop its clock. GM-only.
+   */
+  async handleChangeCalendariaTime(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      return await this.calendaria.changeTime(data ?? {});
+    } catch (error) {
+      throw new Error(
+        `Failed to change Calendaria time: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * List, search, create, update or delete Calendaria notes. GM-only.
+   */
+  async handleManageCalendariaNotes(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      return await this.calendaria.manageNotes(data ?? {});
+    } catch (error) {
+      throw new Error(
+        `Failed to manage Calendaria notes: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Read, forecast, set, generate or clear Calendaria weather. GM-only.
+   */
+  async handleManageCalendariaWeather(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      return await this.calendaria.manageWeather(data ?? {});
+    } catch (error) {
+      throw new Error(
+        `Failed to manage Calendaria weather: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }

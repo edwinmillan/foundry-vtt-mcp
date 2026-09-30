@@ -56,6 +56,10 @@ So a new capability usually spans: a tool class + `backend.ts` wiring (server) a
 - System-exclusive tools live under `src/tools/<system>/` (e.g. `dnd5e/`, `wfrp4e/`) and in `systems/dsa5/character-creator.ts`.
 - Most tools are system-agnostic and should stay that way; put system specifics in the adapter.
 
+### Optional module integrations
+
+Integrations with other Foundry modules (currently Calendaria) go through that module's public API, gated on `game.modules.get(id)?.active`. Calendaria lives in `packages/foundry-module/src/calendaria.ts` (queries registered in `queries.ts`) and `src/tools/calendaria.ts` on the server.
+
 ### Versioning and releases
 
 Bump the version in all five manifests together (root, `shared`, `mcp-server`, `foundry-module` package.json, plus `packages/foundry-module/module.json`); `npm run version:check` and the `version-consistency` workflow fail otherwise. Pushing a `v*` tag runs `.github/workflows/release.yml`, which attaches `foundry-vtt-mcp.zip`, `module.json`, and a server bundle zip to the GitHub release (`module.json`'s manifest/download URLs point at `releases/latest/download/`).
