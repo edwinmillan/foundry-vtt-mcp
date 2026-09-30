@@ -1,3 +1,10 @@
+## v0.11.1 (2026-09-30)
+
+### Fixes
+
+- Private roll requests from `request-player-rolls` no longer fail with "Failed to execute roll" on Foundry v14; the whisper still reaches the target player and the GMs
+- The roll failure notification now includes the underlying error
+
 ## v0.11.0 (2026-09-30)
 
 ### New Features
