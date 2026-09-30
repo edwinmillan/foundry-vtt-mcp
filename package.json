@@ -49,7 +49,10 @@
     "node": ">=18.0.0",
     "npm": ">=9.0.0"
   },
-  "author": "Adam Dooley",
+  "author": "Edwin Millan <1023230+edwinmillan@users.noreply.github.com> (https://github.com/edwinmillan)",
+  "contributors": [
+    "Adam Dooley (https://github.com/adambdooley)"
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",

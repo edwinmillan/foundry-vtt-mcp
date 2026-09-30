@@ -10,8 +10,12 @@
   },
   "authors": [
     {
-      "name": "Adam Dooley",
-      "email": "adambriandooley@gmail.com",
+      "name": "Edwin Millan",
+      "email": "1023230+edwinmillan@users.noreply.github.com",
+      "url": "https://github.com/edwinmillan"
+    },
+    {
+      "name": "Adam Dooley (original author)",
       "url": "https://github.com/adambdooley"
     }
   ],
