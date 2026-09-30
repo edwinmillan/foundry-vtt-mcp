@@ -93,6 +93,12 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.updateWfrp4eActor`] = this.handleUpdateWfrp4eActor.bind(this);
     CONFIG.queries[`${modulePrefix}.addWfrp4eItems`] = this.handleAddWfrp4eItems.bind(this);
 
+    // Fate Core Official queries
+    CONFIG.queries[`${modulePrefix}.updateFateCharacter`] =
+      this.handleUpdateFateCharacter.bind(this);
+    CONFIG.queries[`${modulePrefix}.rollFateSkill`] = this.handleRollFateSkill.bind(this);
+    CONFIG.queries[`${modulePrefix}.manageFateAspects`] = this.handleManageFateAspects.bind(this);
+
     // Token manipulation queries
     CONFIG.queries[`${modulePrefix}.moveToken`] = this.handleMoveToken.bind(this);
     CONFIG.queries[`${modulePrefix}.updateToken`] = this.handleUpdateToken.bind(this);
@@ -918,6 +924,79 @@ export class QueryHandlers {
     } catch (error) {
       throw new Error(
         `Failed to add WFRP4e items: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Update a Fate Core Official character (aspects, skills, stunts, tracks,
+   * fate points). GM-only.
+   */
+  async handleUpdateFateCharacter(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.actor) {
+        throw new Error('actor (name or id) is required');
+      }
+
+      return await this.dataAccess.updateFateCharacter(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to update Fate character: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Roll 4dF + skill for a Fate Core Official actor. GM-only.
+   */
+  async handleRollFateSkill(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.actor) {
+        throw new Error('actor (name or id) is required');
+      }
+
+      return await this.dataAccess.rollFateSkill(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to roll Fate skill: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Manage Fate Core Official situation and game aspects. GM-only.
+   */
+  async handleManageFateAspects(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.action) {
+        throw new Error('action is required');
+      }
+
+      return await this.dataAccess.manageFateAspects(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to manage Fate aspects: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }

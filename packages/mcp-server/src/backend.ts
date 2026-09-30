@@ -34,6 +34,9 @@ import { CampaignManagementTools } from './tools/campaign-management.js';
 import { OwnershipTools } from './tools/ownership.js';
 import { WFRP4eUpdateActorTools } from './tools/wfrp4e/update-actor.js';
 import { WFRP4eAddItemsTools } from './tools/wfrp4e/add-items.js';
+import { FateUpdateCharacterTools } from './tools/fate/update-character.js';
+import { FateRollTools } from './tools/fate/roll.js';
+import { FateAspectTools } from './tools/fate/aspects.js';
 
 import { TokenManipulationTools } from './tools/token-manipulation.js';
 
@@ -179,6 +182,7 @@ async function startBackend(): Promise<void> {
   const { CosmereRpgAdapter } = await import('./systems/cosmere-rpg/adapter.js');
   const { WFRP4eAdapter } = await import('./systems/wfrp4e/adapter.js');
   const { MGT2eAdapter } = await import('./systems/mgt2e/adapter.js');
+  const { FateCoreOfficialAdapter } = await import('./systems/fate-core-official/adapter.js');
 
   const systemRegistry = getSystemRegistry(logger);
   systemRegistry.register(new DnD5eAdapter());
@@ -187,6 +191,7 @@ async function startBackend(): Promise<void> {
   systemRegistry.register(new CosmereRpgAdapter());
   systemRegistry.register(new WFRP4eAdapter());
   systemRegistry.register(new MGT2eAdapter());
+  systemRegistry.register(new FateCoreOfficialAdapter());
 
   logger.info('System registry initialized', {
     supportedSystems: systemRegistry.getSupportedSystems(),
@@ -225,6 +230,10 @@ async function startBackend(): Promise<void> {
   const wfrp4eUpdateActorTools = new WFRP4eUpdateActorTools({ foundryClient, logger });
   const wfrp4eAddItemsTools = new WFRP4eAddItemsTools({ foundryClient, logger });
 
+  const fateUpdateCharacterTools = new FateUpdateCharacterTools({ foundryClient, logger });
+  const fateRollTools = new FateRollTools({ foundryClient, logger });
+  const fateAspectTools = new FateAspectTools({ foundryClient, logger });
+
   const allTools = [
     ...characterTools.getToolDefinitions(),
 
@@ -253,6 +262,10 @@ async function startBackend(): Promise<void> {
     ...wfrp4eUpdateActorTools.getToolDefinitions(),
 
     ...wfrp4eAddItemsTools.getToolDefinitions(),
+
+    ...fateUpdateCharacterTools.getToolDefinitions(),
+    ...fateRollTools.getToolDefinitions(),
+    ...fateAspectTools.getToolDefinitions(),
 
     ...tokenManipulationTools.getToolDefinitions(),
 
@@ -391,6 +404,23 @@ async function startBackend(): Promise<void> {
 
                 case 'wfrp4e-add-items':
                   result = await wfrp4eAddItemsTools.handleAddItems(args);
+
+                  break;
+
+                // Fate Core Official tools
+
+                case 'fate-update-character':
+                  result = await fateUpdateCharacterTools.handleUpdateCharacter(args);
+
+                  break;
+
+                case 'fate-roll':
+                  result = await fateRollTools.handleRoll(args);
+
+                  break;
+
+                case 'fate-manage-aspects':
+                  result = await fateAspectTools.handleManageAspects(args);
 
                   break;
 
