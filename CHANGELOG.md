@@ -1,3 +1,10 @@
+## v0.9.1 (2026-09-29)
+
+### Changes
+
+- List Edwin Millan as the module author and maintainer; credit Adam Dooley as the original author
+- Add a copyright line for the fork alongside the original MIT notice
+
 ## v0.9.0 (2026-09-29)
 
 ### New Features
