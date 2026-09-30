@@ -19,6 +19,7 @@ export type GameSystem =
   | 'wfrp4e'
   | 'mgt2e'
   | 'fate-core-official'
+  | 'abfalter'
   | 'other';
 
 /**
@@ -63,6 +64,8 @@ export async function detectGameSystem(
       cachedSystem = 'wfrp4e';
     } else if (systemId === 'fate-core-official') {
       cachedSystem = 'fate-core-official';
+    } else if (systemId === 'abfalter') {
+      cachedSystem = 'abfalter';
     } else {
       cachedSystem = 'other';
     }

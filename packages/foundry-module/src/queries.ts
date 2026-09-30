@@ -102,6 +102,10 @@ export class QueryHandlers {
     CONFIG.queries[`${modulePrefix}.rollFateSkill`] = this.handleRollFateSkill.bind(this);
     CONFIG.queries[`${modulePrefix}.manageFateAspects`] = this.handleManageFateAspects.bind(this);
 
+    // Anima Beyond Fantasy (abfalter) queries
+    CONFIG.queries[`${modulePrefix}.updateAbfCharacter`] = this.handleUpdateAbfCharacter.bind(this);
+    CONFIG.queries[`${modulePrefix}.rollAbf`] = this.handleRollAbf.bind(this);
+
     // Calendaria module queries
     CONFIG.queries[`${modulePrefix}.getCalendariaStatus`] =
       this.handleGetCalendariaStatus.bind(this);
@@ -1090,6 +1094,54 @@ export class QueryHandlers {
     } catch (error) {
       throw new Error(
         `Failed to manage Calendaria weather: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Update an Anima Beyond Fantasy (abfalter) character. GM-only.
+   */
+  async handleUpdateAbfCharacter(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.actor) {
+        throw new Error('actor (name or id) is required');
+      }
+
+      return await this.dataAccess.updateAbfCharacter(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to update Anima character: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Roll for an Anima Beyond Fantasy (abfalter) actor. GM-only.
+   */
+  async handleRollAbf(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      if (!data.actor || !data.rollType) {
+        throw new Error('actor and rollType are required');
+      }
+
+      return await this.dataAccess.rollAbf(data);
+    } catch (error) {
+      throw new Error(
+        `Failed to roll for Anima actor: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }
