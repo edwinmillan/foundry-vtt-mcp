@@ -9,6 +9,27 @@ import {
   fateDeletion,
   escapeFateHtml,
 } from './fate.js';
+import {
+  ABF_SYSTEM_ID,
+  ABF_CHARACTERISTICS,
+  ABF_RESISTANCES,
+  ABF_RESOURCE_PATHS,
+  ABF_INFO_FIELDS,
+  type AbfRollSettings,
+  type AbfRollType,
+  abfCharacteristicTotal,
+  abfDamagePercent,
+  abfInitiativeRoll,
+  abfOpenRoll,
+  difficultyReached,
+  escapeAbfHtml,
+  findCharacteristic,
+  findResistance,
+  findSecondary,
+  normalizeAbfName,
+  parseDifficulty,
+  secondaryLabel,
+} from './abfalter.js';
 // Local type definitions to avoid shared package import issues
 interface CharacterInfo {
   id: string;
@@ -5988,6 +6009,8 @@ export class FoundryDataAccess {
         rollType === 'skill' ? findFateEntry((character as any)?.system?.skills, rollTarget) : null;
       const rank = Number(skill?.entry?.rank) || 0;
       baseFormula = `4dF${rank >= 0 ? '+' : ''}${rank}`;
+    } else if ((game.system as any).id === ABF_SYSTEM_ID && rollType !== 'custom') {
+      baseFormula = this.buildAbfRollFormula(rollType, rollTarget, (character as any)?.system);
     } else if (character) {
       // Use Foundry's getRollData() to get calculated modifiers including active effects
       const rollData = character.getRollData() as any; // Type assertion for Foundry's dynamic roll data
@@ -6041,6 +6064,36 @@ export class FoundryDataAccess {
     }
 
     return baseFormula;
+  }
+
+  /**
+   * Anima rolls for request-player-rolls: a characteristic is 1d10 + value,
+   * everything else 1d100 + value. Chat roll buttons cannot chain open rolls
+   * or fumbles; abf-roll (or the sheet) resolves those.
+   */
+  private buildAbfRollFormula(rollType: string, rollTarget: string, sys: any): string {
+    const withBase = (die: string, base: unknown) => {
+      const n = Number(base) || 0;
+      return `${die}${n >= 0 ? '+' : ''}${n}`;
+    };
+    switch (rollType) {
+      case 'ability': {
+        const key = findCharacteristic(rollTarget);
+        return withBase('1d10', key ? sys?.stats?.[key]?.final : 0);
+      }
+      case 'save': {
+        const key = findResistance(rollTarget);
+        return withBase('1d100', key ? sys?.resistances?.[key]?.final : 0);
+      }
+      case 'skill':
+        return withBase('1d100', findSecondary(sys?.secondaryFields, rollTarget)?.entry?.final);
+      case 'attack':
+        return withBase('1d100', sys?.combatValues?.attack?.final);
+      case 'initiative':
+        return withBase('1d100', sys?.initiative?.final);
+      default:
+        return '1d100';
+    }
   }
 
   /**
@@ -11222,7 +11275,7 @@ export class FoundryDataAccess {
     };
   }
 
-  private requireFateWrites(): { success: false; error: string } | null {
+  private requireWritesAllowed(): { success: false; error: string } | null {
     if (game.settings.get(MODULE_ID, 'allowWriteOperations')) return null;
     return {
       success: false,
@@ -11289,7 +11342,7 @@ export class FoundryDataAccess {
     biography?: string;
   }): Promise<any> {
     this.validateFoundryState();
-    const blocked = this.requireFateSystem('fate-update-character') ?? this.requireFateWrites();
+    const blocked = this.requireFateSystem('fate-update-character') ?? this.requireWritesAllowed();
     if (blocked) return blocked;
 
     const actor = this.findActorByIdentifier(data.actor);
@@ -11636,7 +11689,7 @@ export class FoundryDataAccess {
       return result;
     }
 
-    const writesBlocked = this.requireFateWrites();
+    const writesBlocked = this.requireWritesAllowed();
     if (writesBlocked) return writesBlocked;
 
     const scope = data.scope ?? 'scene';
@@ -11691,6 +11744,518 @@ export class FoundryDataAccess {
       changed,
       aspects: describe(list),
     };
+  }
+
+  // ─── abfalter (Anima Beyond Fantasy) ────────────────────────────────────────
+
+  private requireAbfSystem(toolName: string): { success: false; error: string } | null {
+    const systemId = (game.system as any).id;
+    if (systemId === ABF_SYSTEM_ID) return null;
+    return {
+      success: false,
+      error: `${toolName} requires the Anima Beyond Fantasy (abfalter) system (current: "${systemId}")`,
+    };
+  }
+
+  /** An abfalter world setting, or the fallback when it is not registered. */
+  private abfSetting<T>(key: string, fallback: T): T {
+    try {
+      const value = game.settings.get(ABF_SYSTEM_ID as any, key as any);
+      return (value ?? fallback) as T;
+    } catch {
+      return fallback;
+    }
+  }
+
+  /**
+   * Update an Anima character: current resources (life points, fatigue, zeon,
+   * ki, psychic points…), characteristic / secondary / combat base values,
+   * experience, info fields, and currency.
+   */
+  async updateAbfCharacter(data: {
+    actor: string;
+    resources?: Partial<Record<string, { value?: number; delta?: number }>>;
+    kiPools?: Array<{ characteristic: string; reserve?: number; accumulated?: number }>;
+    characteristics?: Array<{ name: string; base: number }>;
+    secondaries?: Array<{ name: string; base: number }>;
+    combat?: { attack?: number; block?: number; dodge?: number; wearArmor?: number };
+    allActionModifier?: { base?: number; critical?: number };
+    experience?: number;
+    info?: Record<string, string | number>;
+    currency?: { copper?: number; silver?: number; gold?: number };
+    biography?: string;
+  }): Promise<any> {
+    this.validateFoundryState();
+    const blocked = this.requireAbfSystem('abf-update-character') ?? this.requireWritesAllowed();
+    if (blocked) return blocked;
+
+    const actor = this.findActorByIdentifier(data.actor);
+    if (!actor) return { success: false, error: `Actor not found: ${data.actor}` };
+
+    const sys = actor.system ?? {};
+    const update: Record<string, any> = {};
+    const itemUpdates: Array<Record<string, any>> = [];
+    const applied: Record<string, any> = {};
+    const warnings: string[] = [];
+    const record = (section: string, entry: any) => {
+      (applied[section] ??= []).push(entry);
+    };
+
+    for (const [name, change] of Object.entries(data.resources ?? {})) {
+      if (!change) continue;
+      const path = ABF_RESOURCE_PATHS[name];
+      if (!path) {
+        warnings.push(`Unknown resource "${name}"`);
+        continue;
+      }
+      if (name === 'ki' && !sys.toggles?.unifiedPools) {
+        warnings.push(
+          `${actor.name} uses per-characteristic ki pools; set them with kiPools instead of resources.ki`
+        );
+        continue;
+      }
+      const from = Number(sys[path]?.value) || 0;
+      const to = change.value ?? from + (change.delta ?? 0);
+      update[`system.${path}.value`] = to;
+      applied.resources ??= {};
+      applied.resources[name] = { from, to, max: sys[path]?.max ?? null };
+    }
+
+    for (const pool of data.kiPools ?? []) {
+      const key = findCharacteristic(pool.characteristic);
+      const short = ABF_CHARACTERISTICS.find(c => c.key === key)?.aliases[0];
+      if (!short || !sys.kiPool?.[short]) {
+        warnings.push(
+          `No ki pool for "${pool.characteristic}" (Intelligence and Perception have none)`
+        );
+        continue;
+      }
+      const entry: any = { characteristic: key };
+      if (pool.reserve !== undefined) {
+        update[`system.kiPool.${short}.actual`] = pool.reserve;
+        entry.reserve = { from: sys.kiPool[short].actual ?? 0, to: pool.reserve };
+      }
+      if (pool.accumulated !== undefined) {
+        update[`system.kiPool.${short}.current`] = pool.accumulated;
+        entry.accumulated = { from: sys.kiPool[short].current ?? 0, to: pool.accumulated };
+      }
+      record('kiPools', entry);
+    }
+
+    const monsterChar = !!sys.toggles?.monsterChar;
+    for (const { name, base } of data.characteristics ?? []) {
+      const key = findCharacteristic(name);
+      if (!key) {
+        warnings.push(`Unknown characteristic "${name}"`);
+        continue;
+      }
+      // Creature sheets take characteristics from monsterChar instead of stats.
+      const short = ABF_CHARACTERISTICS.find(c => c.key === key)!.aliases[0];
+      const path = monsterChar ? `system.monsterChar.${short}.base` : `system.stats.${key}.base`;
+      const from = monsterChar ? sys.monsterChar?.[short]?.base : sys.stats?.[key]?.base;
+      update[path] = base;
+      record('characteristics', { name: key, from: from ?? null, to: base });
+    }
+
+    for (const { name, base } of data.secondaries ?? []) {
+      const found = findSecondary(sys.secondaryFields, name);
+      if (found) {
+        update[`system.secondaryFields.${found.category}.${found.key}.base`] = base;
+        record('secondaries', {
+          name: secondaryLabel(found.key),
+          from: found.entry?.base ?? 0,
+          to: base,
+        });
+        continue;
+      }
+      const item = this.findAbfItem(actor, 'secondary', name);
+      if (item) {
+        itemUpdates.push({ _id: item.id, 'system.base': base });
+        record('secondaries', {
+          name: item.name,
+          custom: true,
+          from: item.system?.base ?? 0,
+          to: base,
+        });
+      } else {
+        warnings.push(`Secondary ability not found: "${name}"`);
+      }
+    }
+
+    for (const field of ['attack', 'block', 'dodge', 'wearArmor'] as const) {
+      const value = data.combat?.[field];
+      if (value === undefined) continue;
+      const path =
+        field === 'wearArmor' ? 'system.armor.wearArmor.base' : `system.combatValues.${field}.base`;
+      const from =
+        field === 'wearArmor' ? sys.armor?.wearArmor?.base : sys.combatValues?.[field]?.base;
+      update[path] = value;
+      applied.combat ??= {};
+      applied.combat[field] = { from: from ?? 0, to: value };
+    }
+
+    if (data.allActionModifier) {
+      for (const [field, path] of [
+        ['base', 'base'],
+        ['critical', 'crit'],
+      ] as const) {
+        const value = data.allActionModifier[field];
+        if (value === undefined) continue;
+        update[`system.aamField.${path}`] = value;
+        applied.allActionModifier ??= {};
+        applied.allActionModifier[field] = { from: sys.aamField?.[path] ?? 0, to: value };
+      }
+    }
+
+    if (data.experience !== undefined) {
+      update['system.levelinfo.experience'] = data.experience;
+      applied.experience = { from: sys.levelinfo?.experience ?? 0, to: data.experience };
+    }
+
+    for (const [field, value] of Object.entries(data.info ?? {})) {
+      if (!ABF_INFO_FIELDS.includes(field)) {
+        warnings.push(`Unknown info field "${field}"`);
+        continue;
+      }
+      update[`system.info.${field}`] = value;
+      applied.info ??= {};
+      applied.info[field] = { from: sys.info?.[field] ?? null, to: value };
+    }
+
+    for (const field of ['copper', 'silver', 'gold'] as const) {
+      const value = data.currency?.[field];
+      if (value === undefined) continue;
+      update[`system.currency.${field}`] = value;
+      applied.currency ??= {};
+      applied.currency[field] = { from: sys.currency?.[field] ?? 0, to: value };
+    }
+
+    if (data.biography !== undefined) {
+      update['system.info.bio'] = data.biography;
+      applied.biography = { chars: data.biography.length };
+    }
+
+    if (Object.keys(update).length === 0 && itemUpdates.length === 0) {
+      return {
+        success: false,
+        error: 'Nothing was changed',
+        ...(warnings.length ? { warnings } : {}),
+      };
+    }
+
+    if (Object.keys(update).length > 0) await actor.update(update);
+    if (itemUpdates.length > 0) await actor.updateEmbeddedDocuments('Item', itemUpdates);
+
+    // Report the derived totals the system recomputed from the new bases.
+    const after = actor.system ?? {};
+    for (const entry of applied.characteristics ?? []) {
+      const stat = after.stats?.[entry.name];
+      if (stat?.final !== undefined) Object.assign(entry, { final: stat.final, mod: stat.mod });
+    }
+    for (const entry of applied.secondaries ?? []) {
+      if (entry.custom) continue;
+      const final = findSecondary(after.secondaryFields, entry.name)?.entry?.final;
+      if (final !== undefined) entry.final = final;
+    }
+    for (const field of ['attack', 'block', 'dodge'] as const) {
+      const final = after.combatValues?.[field]?.final;
+      if (applied.combat?.[field] && final !== undefined) applied.combat[field].final = final;
+    }
+
+    return {
+      success: true,
+      actor: { id: actor.id, name: actor.name },
+      applied,
+      ...(warnings.length > 0 ? { warnings } : {}),
+    };
+  }
+
+  private findAbfItem(actor: any, type: string, name: string): any {
+    const wanted = normalizeAbfName(name);
+    const items = Array.from(actor.items ?? []).filter((i: any) => i.type === type);
+    return (
+      items.find((i: any) => normalizeAbfName(i.name ?? '') === wanted) ??
+      items.find((i: any) => normalizeAbfName(i.name ?? '').includes(wanted))
+    );
+  }
+
+  /**
+   * Roll for an Anima actor the way the abfalter sheet does (open rolls,
+   * fumbles, characteristic d10 checks) and post the result to chat. With a
+   * difficulty it reports success; with an opposing total on a combat roll it
+   * resolves the exchange (damage percentage or counterattack bonus).
+   */
+  async rollAbf(data: {
+    actor: string;
+    rollType: AbfRollType;
+    target?: string;
+    weapon?: string;
+    profile?: string;
+    value?: number;
+    modifier?: number;
+    difficulty?: number | string;
+    against?: number;
+    armor?: number;
+    damage?: number;
+    description?: string;
+    gmOnly?: boolean;
+  }): Promise<any> {
+    this.validateFoundryState();
+    const wrongSystem = this.requireAbfSystem('abf-roll');
+    if (wrongSystem) return wrongSystem;
+
+    const actor = this.findActorByIdentifier(data.actor);
+    if (!actor) return { success: false, error: `Actor not found: ${data.actor}` };
+
+    const sys = actor.system ?? {};
+    const settings: AbfRollSettings = {
+      openRange: Number(sys.rollRange?.final) || 90,
+      fumbleRange: Number(sys.fumleRange?.final ?? 3),
+      doubles: sys.rollRange?.doubles === true,
+      limits: sys.rollRange?.limits ?? 'none',
+      correctedOpenRoll: this.abfSetting('Corrected_OpenRoll', false),
+      correctedFumble: this.abfSetting('Corrected_Fumble', false),
+    };
+
+    const rolls: any[] = [];
+    const rollDie = async (formula: string): Promise<number> => {
+      const roll = new Roll(formula);
+      await roll.evaluate();
+      rolls.push(roll);
+      return Number(roll.total) || 0;
+    };
+    const d100 = () => rollDie('1d100');
+
+    const need = (what: string) => ({
+      success: false,
+      error: `rollType "${data.rollType}" needs ${what}`,
+    });
+
+    let label: string;
+    let base: number;
+    let kind: 'open' | 'characteristic' | 'resistance' | 'initiative' = 'open';
+    let weaponInfo: { name: string; profile?: string; damage?: number; atPen: number } | undefined;
+
+    switch (data.rollType) {
+      case 'characteristic':
+      case 'resistance': {
+        if (!data.target) return need('a target (e.g. "Agility" or "PhR")');
+        const isChar = data.rollType === 'characteristic';
+        const key = isChar ? findCharacteristic(data.target) : findResistance(data.target);
+        if (!key) {
+          const options = (isChar ? ABF_CHARACTERISTICS : ABF_RESISTANCES).map(c => c.key);
+          return {
+            success: false,
+            error: `Unknown ${data.rollType} "${data.target}". Options: ${options.join(', ')}`,
+          };
+        }
+        base = Number((isChar ? sys.stats : sys.resistances)?.[key]?.final) || 0;
+        label = isChar ? key : `${key} Resistance`;
+        kind = data.rollType;
+        break;
+      }
+      case 'secondary': {
+        if (!data.target) return need('a target secondary ability (e.g. "Notice")');
+        const found = findSecondary(sys.secondaryFields, data.target);
+        if (found) {
+          base = Number(found.entry?.final) || 0;
+          label = secondaryLabel(found.key);
+        } else {
+          const item = this.findAbfItem(actor, 'secondary', data.target);
+          if (!item) {
+            return { success: false, error: `Secondary ability not found: "${data.target}"` };
+          }
+          base = Number(item.system?.finalValue ?? item.system?.base) || 0;
+          label = item.name;
+        }
+        break;
+      }
+      case 'attack':
+      case 'block':
+      case 'dodge': {
+        const field = data.rollType;
+        if (data.weapon) {
+          const weapon = this.findAbfItem(actor, 'weapon', data.weapon);
+          if (!weapon) return { success: false, error: `Weapon not found: "${data.weapon}"` };
+          const finalKey = { attack: 'finalAttack', block: 'finalBlock', dodge: 'finalDodge' }[
+            field
+          ];
+          const derivedKey = { attack: 'baseAtk', block: 'baseBlk', dodge: 'baseDod' }[field];
+          const profiles: any[] = Object.values(weapon.system?.attacks ?? {});
+          const wanted = data.profile ? normalizeAbfName(data.profile) : undefined;
+          const profile = wanted
+            ? profiles.find(p => normalizeAbfName(p?.name ?? '') === wanted)
+            : profiles.find(p => typeof p?.[finalKey] === 'number');
+          if (wanted && !profile) {
+            const names = profiles.map(p => p?.name).filter(Boolean);
+            return {
+              success: false,
+              error: `${weapon.name} has no profile "${data.profile}". Profiles: ${names.join(', ')}`,
+            };
+          }
+          base = Number(profile?.[finalKey] ?? weapon.system?.derived?.[derivedKey]) || 0;
+          const derived = weapon.system?.derived ?? {};
+          if (typeof derived.baseOpenRollRange === 'number')
+            settings.openRange = derived.baseOpenRollRange;
+          if (typeof derived.baseFumbleRange === 'number')
+            settings.fumbleRange = derived.baseFumbleRange;
+          weaponInfo = {
+            name: weapon.name,
+            ...(profile?.name ? { profile: profile.name } : {}),
+            ...(typeof profile?.finalDamage === 'number' ? { damage: profile.finalDamage } : {}),
+            atPen: Number(profile?.finalAtPen) || 0,
+          };
+          label = `${weapon.name}${profile?.name ? ` (${profile.name})` : ''} ${field}`;
+        } else {
+          base = Number(sys.combatValues?.[field]?.final) || 0;
+          label = field.charAt(0).toUpperCase() + field.slice(1);
+        }
+        break;
+      }
+      case 'initiative':
+        base = Number(sys.initiative?.final) || 0;
+        label = 'Initiative';
+        kind = 'initiative';
+        break;
+      case 'magicProjection':
+      case 'psychicProjection': {
+        const defensive = /^def/i.test(data.target ?? '');
+        const magic = data.rollType === 'magicProjection';
+        base =
+          Number(
+            magic
+              ? defensive
+                ? sys.mproj?.finalDefensive
+                : sys.mproj?.finalOffensive
+              : defensive
+                ? sys.pproj?.finalDef
+                : sys.pproj?.finalOff
+          ) || 0;
+        label = `${defensive ? 'Defensive' : 'Offensive'} ${magic ? 'Magic' : 'Psychic'} Projection`;
+        break;
+      }
+      case 'psychicPotential':
+        base = Number(sys.ppotential?.final) || 0;
+        label = 'Psychic Potential';
+        break;
+      case 'value':
+        if (data.value === undefined) return need('a value (the base to add to the roll)');
+        base = data.value;
+        label = data.target ?? 'Roll';
+        break;
+      default:
+        return { success: false, error: `Unknown rollType "${data.rollType}"` };
+    }
+
+    const modifier = data.modifier ?? 0;
+    // Mastery (a base of 200+) narrows the fumble range by one, as on the sheet.
+    if (kind === 'open' && base > 199 && settings.fumbleRange > 1) settings.fumbleRange -= 1;
+
+    let dice: number[];
+    let total: number;
+    const result: any = { success: true, actor: actor.name, rollType: data.rollType, label, base };
+    if (modifier) result.modifier = modifier;
+
+    if (kind === 'characteristic') {
+      const die = await rollDie('1d10');
+      const outcome = abfCharacteristicTotal(base + modifier, die);
+      dice = [die];
+      total = outcome.total;
+      if (outcome.fumble) result.fumble = 'rolled a 1: -3';
+      if (outcome.open) result.open = 'rolled a 10: +2';
+    } else if (kind === 'resistance') {
+      const die = await d100();
+      dice = [die];
+      total = base + modifier + die;
+      if (die === 1) result.fumble = 'natural 1';
+      if (die === 100) result.open = 'natural 100';
+    } else {
+      const outcome =
+        kind === 'initiative'
+          ? await abfInitiativeRoll(
+              base + modifier,
+              { ...settings, openInitiative: this.abfSetting('Corrected_InitiativeRoll', false) },
+              d100
+            )
+          : await abfOpenRoll(base + modifier, settings, d100);
+      dice = outcome.dice;
+      total = outcome.total;
+      if (outcome.openRolls > 0) result.openRolls = outcome.openRolls;
+      if (outcome.fumble) {
+        result.fumble =
+          kind === 'initiative'
+            ? { penalty: -outcome.fumble.level }
+            : { level: outcome.fumble.level, fumbleRoll: outcome.fumble.roll };
+      }
+    }
+    result.dice = dice;
+    result.total = total;
+
+    const lines = [`<h3>${escapeAbfHtml(label)}</h3>`];
+    if (data.description) lines.push(escapeAbfHtml(data.description));
+    lines.push(
+      `Base: ${base}${modifier ? ` ${modifier >= 0 ? '+' : '-'} ${Math.abs(modifier)}` : ''}`
+    );
+    lines.push(`Dice: ${dice.join(', ')}`);
+    if (result.openRolls) lines.push(`Open rolls: ${result.openRolls}`);
+    if (result.fumble) lines.push('<strong>Fumble</strong>');
+
+    const difficulty = parseDifficulty(data.difficulty);
+    if (data.difficulty !== undefined && difficulty === undefined) {
+      result.warnings = [`Unknown difficulty "${data.difficulty}"; ignored`];
+    }
+    if (difficulty !== undefined) {
+      result.difficulty = difficulty;
+      result.passed = total >= difficulty;
+      result.margin = total - difficulty;
+      lines.push(
+        `Difficulty ${difficulty}: ${result.passed ? 'passed' : 'failed'} by ${Math.abs(result.margin)}`
+      );
+    }
+    if (data.rollType === 'secondary') {
+      result.difficultyReached = difficultyReached(total);
+    }
+
+    if (data.against !== undefined && ['attack', 'block', 'dodge'].includes(data.rollType)) {
+      const attacking = data.rollType === 'attack';
+      const diff = attacking ? total - data.against : data.against - total;
+      const atPen = attacking ? (weaponInfo?.atPen ?? 0) : 0;
+      const armor = Math.max(0, (data.armor ?? 0) - atPen);
+      const coreFormula = !!this.abfSetting<any>('combatSettings', {})?.resDmgFormula;
+      const exchange: any = { attackerMargin: diff, armor };
+      if (diff > 0) {
+        exchange.damagePercent = abfDamagePercent(diff, armor, coreFormula);
+        const damage = data.damage ?? (attacking ? weaponInfo?.damage : undefined);
+        if (damage !== undefined) {
+          exchange.baseDamage = damage;
+          exchange.damageDealt = Math.floor((damage * exchange.damagePercent) / 100);
+        }
+        lines.push(`Attack succeeds by ${diff}: ${exchange.damagePercent}% damage`);
+      } else if (diff < 0) {
+        exchange.counterattackBonus = Math.floor(Math.abs(diff) / 2);
+        lines.push(`Defense succeeds by ${-diff}: counterattack +${exchange.counterattackBonus}`);
+      }
+      result.exchange = exchange;
+    }
+    if (weaponInfo) result.weapon = weaponInfo;
+
+    const speaker = ChatMessage.getSpeaker({ actor });
+    const chatData: any = {
+      speaker,
+      flavor: lines.join('<br>'),
+      content: `<div class="dice-total">${total}</div>`,
+      rolls,
+      sound: (CONFIG as any).sounds?.dice,
+    };
+    const chat: any = ChatMessage;
+    if (typeof chat.applyMode === 'function')
+      chat.applyMode(chatData, data.gmOnly ? 'gm' : 'public');
+    else if (typeof chat.applyRollMode === 'function') {
+      chat.applyRollMode(chatData, data.gmOnly ? 'gmroll' : 'publicroll');
+    }
+    await ChatMessage.create(chatData);
+
+    return result;
   }
 }
 

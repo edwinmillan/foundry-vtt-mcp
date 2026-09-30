@@ -37,6 +37,8 @@ import { WFRP4eAddItemsTools } from './tools/wfrp4e/add-items.js';
 import { FateUpdateCharacterTools } from './tools/fate/update-character.js';
 import { FateRollTools } from './tools/fate/roll.js';
 import { FateAspectTools } from './tools/fate/aspects.js';
+import { AbfUpdateCharacterTools } from './tools/abfalter/update-character.js';
+import { AbfRollTools } from './tools/abfalter/roll.js';
 import { CalendariaTools } from './tools/calendaria.js';
 
 import { TokenManipulationTools } from './tools/token-manipulation.js';
@@ -184,6 +186,7 @@ async function startBackend(): Promise<void> {
   const { WFRP4eAdapter } = await import('./systems/wfrp4e/adapter.js');
   const { MGT2eAdapter } = await import('./systems/mgt2e/adapter.js');
   const { FateCoreOfficialAdapter } = await import('./systems/fate-core-official/adapter.js');
+  const { AbfalterAdapter } = await import('./systems/abfalter/adapter.js');
 
   const systemRegistry = getSystemRegistry(logger);
   systemRegistry.register(new DnD5eAdapter());
@@ -193,6 +196,7 @@ async function startBackend(): Promise<void> {
   systemRegistry.register(new WFRP4eAdapter());
   systemRegistry.register(new MGT2eAdapter());
   systemRegistry.register(new FateCoreOfficialAdapter());
+  systemRegistry.register(new AbfalterAdapter());
 
   logger.info('System registry initialized', {
     supportedSystems: systemRegistry.getSupportedSystems(),
@@ -235,6 +239,9 @@ async function startBackend(): Promise<void> {
   const fateRollTools = new FateRollTools({ foundryClient, logger });
   const fateAspectTools = new FateAspectTools({ foundryClient, logger });
 
+  const abfUpdateCharacterTools = new AbfUpdateCharacterTools({ foundryClient, logger });
+  const abfRollTools = new AbfRollTools({ foundryClient, logger });
+
   const calendariaTools = new CalendariaTools({ foundryClient, logger });
 
   const allTools = [
@@ -269,6 +276,9 @@ async function startBackend(): Promise<void> {
     ...fateUpdateCharacterTools.getToolDefinitions(),
     ...fateRollTools.getToolDefinitions(),
     ...fateAspectTools.getToolDefinitions(),
+
+    ...abfUpdateCharacterTools.getToolDefinitions(),
+    ...abfRollTools.getToolDefinitions(),
 
     ...calendariaTools.getToolDefinitions(),
 
@@ -426,6 +436,18 @@ async function startBackend(): Promise<void> {
 
                 case 'fate-manage-aspects':
                   result = await fateAspectTools.handleManageAspects(args);
+
+                  break;
+
+                // Anima Beyond Fantasy (abfalter) tools
+
+                case 'abf-update-character':
+                  result = await abfUpdateCharacterTools.handleUpdateCharacter(args);
+
+                  break;
+
+                case 'abf-roll':
+                  result = await abfRollTools.handleRoll(args);
 
                   break;
 
