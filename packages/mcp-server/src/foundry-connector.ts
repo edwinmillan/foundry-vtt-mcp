@@ -42,7 +42,6 @@ export class FoundryConnector {
     this.logger.info('Starting Foundry connector WebSocket server', {
       port: this.config.port,
       protocol: this.config.protocol || 'ws',
-      remoteMode: this.config.remoteMode || false,
     });
 
     // Create HTTP server for WebSocket connections
@@ -239,21 +238,6 @@ export class FoundryConnector {
         clearTimeout(pending.timeout);
         this.pendingQueries.delete(message.id);
         pending.resolve(message.data);
-      }
-      return;
-    }
-
-    const comfyHandlers = (globalThis as any).backendComfyUIHandlers;
-    if (comfyHandlers?.handleMessage) {
-      this.logger.debug('Routing message to backend ComfyUI handlers', { type: message.type });
-      try {
-        await comfyHandlers.handleMessage(message);
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : String(error);
-        this.logger.error('Failed to forward message to backendComfyUIHandlers', {
-          type: message.type,
-          error: errorMessage,
-        });
       }
       return;
     }

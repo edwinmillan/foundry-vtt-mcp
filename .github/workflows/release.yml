@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20.12.2'
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check version consistency
+        run: npm run version:check
+
+      - name: Build
+        run: npm run build
+
+      - name: Test
+        run: npm test
+
+      - name: Bundle MCP server
+        run: npm run bundle:server
+
+      # module.json's manifest/download URLs point at releases/latest/download/,
+      # so both module.json and foundry-vtt-mcp.zip must be attached to every release.
+      - name: Package Foundry module
+        run: |
+          cd packages/foundry-module
+          zip -r ../../foundry-vtt-mcp.zip . -x ".*" -x "node_modules/*" -x "src/*"
+
+      - name: Package MCP server
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          mkdir foundry-mcp-server
+          cp packages/mcp-server/dist/index.bundle.cjs foundry-mcp-server/index.cjs
+          cp packages/mcp-server/dist/backend.bundle.cjs foundry-mcp-server/backend.bundle.cjs
+          zip -r "foundry-mcp-server-v${VERSION}.zip" foundry-mcp-server
+
+      - name: Create GitHub release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            foundry-vtt-mcp.zip
+            foundry-mcp-server-v*.zip
+            packages/foundry-module/module.json

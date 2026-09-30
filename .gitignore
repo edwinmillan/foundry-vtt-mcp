@@ -58,15 +58,8 @@ coverage/
 test-results/
 *test-result*.txt
 
-# Installer Build Output
-installer/*.exe
-installer/temp/
-installer/*.zip
-
-# Executable Files (except in specific locations)
+# Executable Files
 *.exe
-!installer/build/*.exe
-!installer/nsis/*.exe
 
 # Temporary Scripts
 test-*.ps1
