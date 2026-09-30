@@ -1,3 +1,14 @@
+## Unreleased
+
+### New Features
+
+- **Calendaria integration** (works in any game system when the [Calendaria](https://github.com/Sayshal/Calendaria) module is active)
+  - `calendaria-get-date`: date, weekday, time, season, festival, moon phases, sunrise/sunset, clock state, current weather, and the calendar's months and weekdays
+  - `calendaria-change-time`: advance (or rewind) by days/hours/minutes/seconds, set a date or time (months by number or name), advance to the next sunrise/midday/sunset/midnight, start or stop the real-time clock, optionally with the cinematic time-skip
+  - `calendaria-manage-notes`: list notes in a date range (including recurring ones), search, read, create, update and delete calendar notes
+  - `calendaria-manage-weather`: current weather, forecast, presets, and set/generate/clear weather
+  - Changes respect the Allow Write Operations setting and Calendaria's own permissions
+
 ## v0.9.1 (2026-09-29)
 
 ### Changes
