@@ -1,3 +1,19 @@
+## Unreleased
+
+### New Features
+
+- **Fate Core Official system support** (`fate-core-official`)
+  - `get-character` reports aspects, skills on the Fate ladder (e.g. "Great (+4)"), stunts, stress and consequence tracks, fate points/refresh/boosts, and extras
+  - `fate-update-character`: set aspect text and skill ranks (adding missing ones), add/replace/remove stunts, mark or clear stress boxes, write or clear consequences, and set fate points; recomputes skill-linked tracks the way the system's own skill editor does
+  - `fate-roll`: rolls 4dF + skill rank (+ stunt bonus + modifier) with the system's chat card styling, and reports shifts and outcome against a difficulty
+  - `fate-manage-aspects`: list/add/update/remove/clear situation aspects (per scene) and game aspects (world-wide) with free invokes, refreshing Fate Utilities on every client
+  - `request-player-rolls` rolls 4dF + skill in Fate worlds, and Fate characters count as party characters for player lookup
+  - `create-actor-from-compendium` accepts `fate-core-official` actors
+
+### Removed
+
+- ComfyUI map generation (`generate-map`, `check-map-status`, `cancel-map-job`), the Windows/macOS installers, publishing to the Foundry package listing, and the default public STUN servers, to keep dependencies local
+
 ## v0.8.4 (2026-09-12)
 
 ### New Features

@@ -34,7 +34,7 @@ export class DiceRollTools {
             rollTarget: {
               type: 'string',
               description:
-                'Target for the roll - can be ability name (str, dex, con, int, wis, cha), skill name (perception, insight, stealth, etc.), or custom roll formula',
+                'Target for the roll - can be ability name (str, dex, con, int, wis, cha), skill name (perception, insight, stealth, etc.), or custom roll formula. In Fate Core Official worlds use rollType "skill" with the Fate skill name (e.g. "Notice"); the roll is 4dF + skill rank.',
             },
             targetPlayer: {
               type: 'string',

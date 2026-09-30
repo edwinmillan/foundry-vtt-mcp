@@ -1,6 +1,14 @@
 import { MODULE_ID, ERROR_MESSAGES, TOKEN_DISPOSITIONS } from './constants.js';
 import { permissionManager } from './permissions.js';
 import { transactionManager } from './transaction-manager.js';
+import {
+  FATE_SYSTEM_ID,
+  FATE_DEFAULT_LADDER,
+  fateKey,
+  findFateEntry,
+  fateDeletion,
+  escapeFateHtml,
+} from './fate.js';
 // Local type definitions to avoid shared package import issues
 interface CharacterInfo {
   id: string;
@@ -4668,7 +4676,7 @@ export class FoundryDataAccess {
 
       // Validate actor type - support all common actor types including DSA5 creatures
       // and Cosmere RPG adversaries.
-      const validActorTypes = ['character', 'npc', 'creature', 'adversary'];
+      const validActorTypes = ['character', 'npc', 'creature', 'adversary', FATE_SYSTEM_ID];
       if (!validActorTypes.includes(sourceDocument.type)) {
         throw new Error(
           `Document "${itemId}" has unsupported actor type: ${sourceDocument.type}. Supported types: ${validActorTypes.join(', ')}`
@@ -5974,7 +5982,13 @@ export class FoundryDataAccess {
   ): string {
     let baseFormula = '1d20';
 
-    if (character) {
+    if ((game.system as any).id === FATE_SYSTEM_ID && rollType !== 'custom') {
+      // Fate rolls 4dF + skill rank; there are no abilities, saves, or initiative bonuses.
+      const skill =
+        rollType === 'skill' ? findFateEntry((character as any)?.system?.skills, rollTarget) : null;
+      const rank = Number(skill?.entry?.rank) || 0;
+      baseFormula = `4dF${rank >= 0 ? '+' : ''}${rank}`;
+    } else if (character) {
       // Use Foundry's getRollData() to get calculated modifiers including active effects
       const rollData = character.getRollData() as any; // Type assertion for Foundry's dynamic roll data
 
@@ -7154,6 +7168,14 @@ export class FoundryDataAccess {
   }
 
   /**
+   * Whether an actor type is used for player characters. Most systems use
+   * "character"; Fate Core Official uses one type for PCs and NPCs alike.
+   */
+  private isPlayerCharacterType(type: string | undefined): boolean {
+    return type === 'character' || type === FATE_SYSTEM_ID;
+  }
+
+  /**
    * Get party characters (player-owned actors)
    */
   async getPartyCharacters(): Promise<Array<{ id: string; name: string }>> {
@@ -7161,7 +7183,7 @@ export class FoundryDataAccess {
 
     try {
       const partyCharacters = Array.from(game.actors || []).filter(
-        actor => actor.hasPlayerOwner && actor.type === 'character'
+        actor => actor.hasPlayerOwner && this.isPlayerCharacterType(actor.type)
       );
 
       return partyCharacters
@@ -7227,7 +7249,7 @@ export class FoundryDataAccess {
       // Character name matching (find owner of character)
       if (includeCharacterOwners && players.length === 0) {
         for (const actor of game.actors || []) {
-          if (actor.type !== 'character') continue;
+          if (!this.isPlayerCharacterType(actor.type)) continue;
 
           const actorName = actor.name?.toLowerCase() || '';
           if (actorName === searchTerm || (allowPartialMatch && actorName.includes(searchTerm))) {
@@ -11188,6 +11210,488 @@ export class FoundryDataAccess {
   }
 
   // ─── mgt2e ──────────────────────────────────────────────────────────────────
+
+  // ─── fate-core-official ─────────────────────────────────────────────────────
+
+  private requireFateSystem(toolName: string): { success: false; error: string } | null {
+    const systemId = (game.system as any).id;
+    if (systemId === FATE_SYSTEM_ID) return null;
+    return {
+      success: false,
+      error: `${toolName} requires the Fate Core Official system (current: "${systemId}")`,
+    };
+  }
+
+  private requireFateWrites(): { success: false; error: string } | null {
+    if (game.settings.get(MODULE_ID, 'allowWriteOperations')) return null;
+    return {
+      success: false,
+      error: 'Write operations are disabled in the Foundry MCP Bridge settings',
+    };
+  }
+
+  /** The world's Fate ladder (the system's "ladder" setting), keyed by rank. */
+  private getFateLadder(): Record<string, string> {
+    let ladder: Record<string, string> | undefined;
+    try {
+      ladder = game.settings.get(FATE_SYSTEM_ID as any, 'ladder' as any);
+    } catch {
+      ladder = undefined;
+    }
+    const result: Record<string, string> = { ...FATE_DEFAULT_LADDER };
+    for (const [rank, label] of Object.entries(ladder ?? {})) {
+      if (label) result[rank] = label;
+    }
+    return result;
+  }
+
+  private fateRankLabel(rank: number, ladder: Record<string, string>): string {
+    const label = ladder[String(rank)];
+    return label ? `${label} (${rank >= 0 ? '+' : ''}${rank})` : `${rank >= 0 ? '+' : ''}${rank}`;
+  }
+
+  /** Re-render Fate Utilities here and on every other client. */
+  private refreshFateUtilities(): void {
+    try {
+      (foundry as any).applications?.instances?.get('FateUtilities')?.render(false);
+      (game.socket as any)?.emit(`system.${FATE_SYSTEM_ID}`, { render: true });
+    } catch (error) {
+      console.warn(`[${MODULE_ID}] Could not refresh Fate Utilities:`, error);
+    }
+  }
+
+  /**
+   * Update a Fate Core Official character: aspects, skill ranks, stunts,
+   * stress/consequence tracks, and fate points.
+   */
+  async updateFateCharacter(data: {
+    actor: string;
+    aspects?: Array<{ name: string; value: string }>;
+    skills?: Array<{ name: string; rank: number }>;
+    addStunts?: Array<{
+      name: string;
+      description?: string;
+      linkedSkill?: string;
+      bonus?: number;
+      refreshCost?: number;
+      actions?: Array<'overcome' | 'create_advantage' | 'attack' | 'defend'>;
+    }>;
+    removeStunts?: string[];
+    tracks?: Array<{
+      name: string;
+      mark?: number[];
+      unmark?: number[];
+      clear?: boolean;
+      aspect?: string;
+    }>;
+    fatePoints?: { current?: number; refresh?: number; boosts?: number };
+    description?: string;
+    biography?: string;
+  }): Promise<any> {
+    this.validateFoundryState();
+    const blocked = this.requireFateSystem('fate-update-character') ?? this.requireFateWrites();
+    if (blocked) return blocked;
+
+    const actor = this.findActorByIdentifier(data.actor);
+    if (!actor) return { success: false, error: `Actor not found: ${data.actor}` };
+    if (actor.type !== FATE_SYSTEM_ID) {
+      return {
+        success: false,
+        error: `"${actor.name}" is a ${actor.type} actor; only ${FATE_SYSTEM_ID} characters have aspects, skills and tracks`,
+      };
+    }
+
+    const sys = actor.system ?? {};
+    const update: Record<string, any> = {};
+    const applied: Record<string, any> = {};
+    const warnings: string[] = [];
+    const record = (section: string, entry: any) => {
+      (applied[section] ??= []).push(entry);
+    };
+
+    for (const { name, value } of data.aspects ?? []) {
+      const found = findFateEntry(sys.aspects, name);
+      if (found) {
+        update[`system.aspects.${found.key}.value`] = value;
+        record('aspects', { name: found.entry.name, from: found.entry.value ?? '', to: value });
+      } else {
+        update[`system.aspects.${fateKey(name)}`] = { name, value, description: '', notes: '' };
+        record('aspects', { name, added: true, to: value });
+      }
+    }
+
+    for (const { name, rank } of data.skills ?? []) {
+      const found = findFateEntry(sys.skills, name);
+      if (found) {
+        update[`system.skills.${found.key}.rank`] = rank;
+        record('skills', { name: found.entry.name, from: found.entry.rank ?? 0, to: rank });
+      } else {
+        update[`system.skills.${fateKey(name)}`] = {
+          name,
+          rank,
+          description: '',
+          overcome: '',
+          caa: '',
+          attack: '',
+          defend: '',
+          pc: true,
+          adhoc: false,
+          hidden: false,
+        };
+        record('skills', { name, added: true, to: rank });
+        warnings.push(`"${name}" was not on the sheet; added it as a new skill`);
+      }
+    }
+
+    for (const name of data.removeStunts ?? []) {
+      const found = findFateEntry(sys.stunts, name);
+      if (!found) {
+        warnings.push(`Stunt not found, nothing removed: "${name}"`);
+        continue;
+      }
+      Object.assign(update, fateDeletion('system.stunts', found.key));
+      record('stuntsRemoved', found.entry.name);
+    }
+
+    for (const stunt of data.addStunts ?? []) {
+      const actions = new Set(stunt.actions ?? []);
+      const existing = findFateEntry(sys.stunts, stunt.name);
+      const key = existing?.key ?? fateKey(stunt.name);
+      update[`system.stunts.${key}`] = {
+        ...(existing?.entry ?? {}),
+        name: stunt.name,
+        description: stunt.description ?? existing?.entry.description ?? '',
+        notes: existing?.entry.notes ?? '',
+        linked_skill: stunt.linkedSkill ?? existing?.entry.linked_skill ?? 'None',
+        refresh_cost: stunt.refreshCost ?? existing?.entry.refresh_cost ?? 1,
+        bonus: stunt.bonus ?? existing?.entry.bonus ?? 0,
+        overcome: stunt.actions ? actions.has('overcome') : (existing?.entry.overcome ?? false),
+        caa: stunt.actions ? actions.has('create_advantage') : (existing?.entry.caa ?? false),
+        attack: stunt.actions ? actions.has('attack') : (existing?.entry.attack ?? false),
+        defend: stunt.actions ? actions.has('defend') : (existing?.entry.defend ?? false),
+        boxes: existing?.entry.boxes ?? 0,
+        box_values: existing?.entry.box_values ?? [],
+        macro: existing?.entry.macro ?? null,
+      };
+      record('stuntsAdded', { name: stunt.name, replaced: !!existing });
+    }
+
+    if (data.fatePoints) {
+      const current = sys.details?.fatePoints ?? {};
+      for (const field of ['current', 'refresh', 'boosts'] as const) {
+        const value = data.fatePoints[field];
+        if (value === undefined) continue;
+        update[`system.details.fatePoints.${field}`] = value;
+        applied.fatePoints ??= {};
+        applied.fatePoints[field] = { from: current[field] ?? null, to: value };
+      }
+    }
+
+    if (data.description !== undefined) {
+      update['system.details.description.value'] = data.description;
+      applied.description = { chars: data.description.length };
+    }
+    if (data.biography !== undefined) {
+      update['system.details.biography.value'] = data.biography;
+      applied.biography = { chars: data.biography.length };
+    }
+
+    if (Object.keys(update).length > 0) await actor.update(update);
+
+    // Skills can enable tracks or add boxes (e.g. Physique → stress); let the
+    // system recompute them the way its own skill editor does.
+    if (data.skills?.length && typeof actor.setupTracks === 'function') {
+      const tracks = actor.setupTracks(
+        foundry.utils.deepClone(actor.system.skills),
+        foundry.utils.deepClone(actor.system.tracks)
+      );
+      await actor.update({ 'system.tracks': tracks });
+    }
+
+    if (data.tracks?.length) {
+      const trackUpdate: Record<string, any> = {};
+      const tracks = actor.system.tracks ?? {};
+      for (const change of data.tracks) {
+        const found = findFateEntry(tracks, change.name);
+        if (!found) {
+          const names = Object.values(tracks)
+            .map((t: any) => t?.name)
+            .filter(Boolean);
+          warnings.push(`Track not found: "${change.name}". Tracks: ${names.join(', ')}`);
+          continue;
+        }
+        const track = found.entry;
+        const boxes: boolean[] = Array.isArray(track.box_values) ? [...track.box_values] : [];
+        const outOfRange: number[] = [];
+        const setBoxes = (numbers: number[] | undefined, checked: boolean) => {
+          for (const n of numbers ?? []) {
+            if (n < 1 || n > boxes.length) outOfRange.push(n);
+            else boxes[n - 1] = checked;
+          }
+        };
+        if (change.clear) boxes.fill(false);
+        setBoxes(change.mark, true);
+        setBoxes(change.unmark, false);
+        if (outOfRange.length > 0) {
+          warnings.push(
+            `"${track.name}" has ${boxes.length} box(es); ignored box number(s) ${outOfRange.join(', ')}`
+          );
+        }
+
+        const summary: any = { name: track.name };
+        if (boxes.length > 0) {
+          trackUpdate[`system.tracks.${found.key}.box_values`] = boxes;
+          summary.marked = boxes.map((b, i) => (b ? i + 1 : null)).filter(i => i !== null);
+        }
+
+        const hasAspect =
+          track.aspect !== null &&
+          typeof track.aspect === 'object' &&
+          (track.aspect.when_marked || track.aspect.as_name);
+        const aspectText = change.aspect ?? (change.clear ? '' : undefined);
+        if (aspectText !== undefined) {
+          if (hasAspect) {
+            trackUpdate[`system.tracks.${found.key}.aspect.name`] = aspectText;
+            summary.aspect = aspectText;
+          } else if (change.aspect !== undefined) {
+            warnings.push(`"${track.name}" is not a consequence track; ignored aspect text`);
+          }
+        }
+        record('tracks', summary);
+      }
+      if (Object.keys(trackUpdate).length > 0) await actor.update(trackUpdate);
+    }
+
+    return {
+      success: true,
+      actor: { id: actor.id, name: actor.name },
+      applied,
+      ...(warnings.length > 0 ? { warnings } : {}),
+    };
+  }
+
+  /**
+   * Roll 4dF + skill rank (+ stunt bonus + modifier) for a Fate actor and post
+   * it to chat, mirroring the system's own roll card.
+   */
+  async rollFateSkill(data: {
+    actor: string;
+    skill?: string;
+    stunt?: string;
+    modifier?: number;
+    difficulty?: number;
+    action?: 'overcome' | 'create_advantage' | 'attack' | 'defend';
+    description?: string;
+    gmOnly?: boolean;
+  }): Promise<any> {
+    this.validateFoundryState();
+    const wrongSystem = this.requireFateSystem('fate-roll');
+    if (wrongSystem) return wrongSystem;
+
+    const actor = this.findActorByIdentifier(data.actor);
+    if (!actor) return { success: false, error: `Actor not found: ${data.actor}` };
+
+    const sys = actor.system ?? {};
+    const warnings: string[] = [];
+
+    let stunt: any;
+    if (data.stunt) {
+      stunt = findFateEntry(sys.stunts, data.stunt)?.entry;
+      if (!stunt)
+        return { success: false, error: `Stunt not found on ${actor.name}: ${data.stunt}` };
+    }
+
+    const skillName =
+      data.skill ??
+      (stunt?.linked_skill && !['None', 'Special'].includes(stunt.linked_skill)
+        ? stunt.linked_skill
+        : undefined);
+    let rank = 0;
+    let skillLabel = skillName;
+    if (skillName) {
+      const skill = findFateEntry(sys.skills, skillName)?.entry;
+      if (skill) {
+        rank = Number(skill.rank) || 0;
+        skillLabel = skill.name;
+      } else {
+        warnings.push(`${actor.name} has no "${skillName}" skill; rolled at Mediocre (+0)`);
+      }
+    }
+
+    const bonus = stunt ? Number(stunt.bonus) || 0 : 0;
+    const modifier = data.modifier ?? 0;
+    const signed = (n: number) => `${n >= 0 ? '+' : '-'} ${Math.abs(n)}`;
+    let formula = `4dF ${signed(rank)}`;
+    if (bonus) formula += ` ${signed(bonus)}`;
+    if (modifier) formula += ` ${signed(modifier)}`;
+
+    const roll = new Roll(formula);
+    await roll.evaluate();
+    const fateDie: any = roll.dice[0];
+    if (fateDie) fateDie.options.sfx = { id: 'fate4df', result: roll.result };
+    const faces: number[] = (fateDie?.results ?? []).map((r: any) => r.result);
+    const total = roll.total ?? 0;
+
+    const ladder = this.getFateLadder();
+    const actionLabels = {
+      overcome: 'Overcome',
+      create_advantage: 'Create an Advantage',
+      attack: 'Attack',
+      defend: 'Defend',
+    };
+    const title = skillLabel ?? stunt?.name ?? 'Roll';
+    const lines = [`<h1>${escapeFateHtml(title)}</h1>`];
+    if (data.action) lines.push(`${actionLabels[data.action]}`);
+    if (data.description) lines.push(escapeFateHtml(data.description));
+    lines.push(`Skill Rank: ${rank} (${escapeFateHtml(ladder[String(rank)] ?? '')})`);
+    if (stunt) lines.push(`Stunt: ${escapeFateHtml(stunt.name)} (+${bonus})`);
+    if (modifier) lines.push(`Modifier: ${modifier >= 0 ? '+' : ''}${modifier}`);
+    if (data.difficulty !== undefined) {
+      lines.push(`Difficulty: ${this.fateRankLabel(data.difficulty, ladder)}`);
+    }
+
+    const speaker = ChatMessage.getSpeaker({ actor });
+    (speaker as any).alias = actor.name;
+    const messageData: any = { flavor: lines.join('<br>'), speaker };
+    await roll.toMessage(messageData, {
+      create: true,
+      rollMode: data.gmOnly ? 'gmroll' : 'publicroll',
+    });
+
+    const result: any = {
+      success: true,
+      actor: actor.name,
+      formula,
+      dice: faces.map(f => (f > 0 ? '+' : f < 0 ? '-' : '0')).join(' '),
+      diceTotal: faces.reduce((a, b) => a + b, 0),
+      rank,
+      ...(skillLabel ? { skill: skillLabel } : {}),
+      ...(stunt ? { stunt: stunt.name, stuntBonus: bonus } : {}),
+      ...(modifier ? { modifier } : {}),
+      total,
+      result: this.fateRankLabel(total, ladder),
+    };
+    if (data.difficulty !== undefined) {
+      const shifts = total - data.difficulty;
+      result.difficulty = this.fateRankLabel(data.difficulty, ladder);
+      result.shifts = shifts;
+      result.outcome =
+        shifts < 0 ? 'fail' : shifts === 0 ? 'tie' : shifts >= 3 ? 'success with style' : 'success';
+    }
+    if (warnings.length > 0) result.warnings = warnings;
+    return result;
+  }
+
+  /**
+   * List/add/update/remove/clear Fate situation aspects (a scene flag) and
+   * game aspects (a world setting), as displayed by Fate Utilities.
+   */
+  async manageFateAspects(data: {
+    action: 'list' | 'add' | 'update' | 'remove' | 'clear';
+    scope?: 'scene' | 'game';
+    scene?: string;
+    name?: string;
+    newName?: string;
+    freeInvokes?: number;
+    notes?: string;
+  }): Promise<any> {
+    this.validateFoundryState();
+    const wrongSystem = this.requireFateSystem('fate-manage-aspects');
+    if (wrongSystem) return wrongSystem;
+
+    const resolveScene = () => {
+      const scene = data.scene
+        ? this.findSceneByIdentifier(data.scene)
+        : ((game.scenes as any)?.viewed ?? (game.scenes as any)?.active);
+      if (!scene) throw new Error('No scene is being viewed; pass a scene name or id');
+      return scene;
+    };
+    const readScene = (scene: any): any[] =>
+      foundry.utils.deepClone(scene.getFlag(FATE_SYSTEM_ID, 'situation_aspects') ?? []);
+    const readGame = (): any[] => {
+      try {
+        return foundry.utils.deepClone(
+          game.settings.get(FATE_SYSTEM_ID as any, 'gameAspects' as any) ?? []
+        );
+      } catch {
+        return [];
+      }
+    };
+    const describe = (list: any[]) =>
+      list
+        .filter(a => a?.name)
+        .map(a => ({
+          name: a.name,
+          freeInvokes: Number(a.free_invokes) || 0,
+          ...(a.notes ? { notes: a.notes } : {}),
+        }));
+
+    if (data.action === 'list') {
+      const result: any = { success: true };
+      if (data.scope !== 'game') {
+        const scene = resolveScene();
+        result.scene = { id: scene.id, name: scene.name, aspects: describe(readScene(scene)) };
+      }
+      if (data.scope !== 'scene') result.gameAspects = describe(readGame());
+      return result;
+    }
+
+    const writesBlocked = this.requireFateWrites();
+    if (writesBlocked) return writesBlocked;
+
+    const scope = data.scope ?? 'scene';
+    const scene = scope === 'scene' ? resolveScene() : null;
+    const list = scene ? readScene(scene) : readGame();
+    const index = data.name
+      ? list.findIndex(a => a?.name?.toLowerCase() === data.name!.toLowerCase())
+      : -1;
+    let changed: any;
+
+    switch (data.action) {
+      case 'add': {
+        if (index !== -1) {
+          return { success: false, error: `Aspect already exists: "${list[index].name}"` };
+        }
+        const aspect: any = { name: data.name, free_invokes: data.freeInvokes ?? 0 };
+        if (scope === 'game') aspect.notes = data.notes ?? '';
+        list.push(aspect);
+        changed = aspect;
+        break;
+      }
+      case 'update': {
+        if (index === -1) return { success: false, error: `Aspect not found: "${data.name}"` };
+        const aspect = list[index];
+        if (data.newName !== undefined) aspect.name = data.newName;
+        if (data.freeInvokes !== undefined) aspect.free_invokes = data.freeInvokes;
+        if (data.notes !== undefined) aspect.notes = data.notes;
+        changed = aspect;
+        break;
+      }
+      case 'remove': {
+        if (index === -1) return { success: false, error: `Aspect not found: "${data.name}"` };
+        changed = list.splice(index, 1)[0];
+        break;
+      }
+      case 'clear': {
+        changed = { removed: list.filter(a => a?.name).length };
+        list.length = 0;
+        break;
+      }
+    }
+
+    if (scene) await scene.setFlag(FATE_SYSTEM_ID, 'situation_aspects', list);
+    else await game.settings.set(FATE_SYSTEM_ID as any, 'gameAspects' as any, list as any);
+    this.refreshFateUtilities();
+
+    return {
+      success: true,
+      action: data.action,
+      scope,
+      ...(scene ? { scene: { id: scene.id, name: scene.name } } : {}),
+      changed,
+      aspects: describe(list),
+    };
+  }
 }
 
 // =============================================================================
