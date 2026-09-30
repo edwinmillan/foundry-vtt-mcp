@@ -22,7 +22,7 @@ const importDist = async (relativePath) =>
 
 const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { CompendiumTools }, { SceneTools },
   { ActorCreationTools }, { QuestCreationTools }, { DiceRollTools }, { CampaignManagementTools },
-  { OwnershipTools }, { TokenManipulationTools }, { MapGenerationTools }, { getSystemRegistry },
+  { OwnershipTools }, { TokenManipulationTools }, { getSystemRegistry },
   { DnD5eAdapter }, { PF2eAdapter }, { DSA5Adapter }, { CosmereRpgAdapter }] = await Promise.all([
   importDist('config.js'),
   importDist('logger.js'),
@@ -36,7 +36,6 @@ const [{ config }, { Logger }, { FoundryClient }, { CharacterTools }, { Compendi
   importDist('tools/campaign-management.js'),
   importDist('tools/ownership.js'),
   importDist('tools/token-manipulation.js'),
-  importDist('tools/map-generation.js'),
   importDist('systems/index.js'),
   importDist('systems/dnd5e/adapter.js'),
   importDist('systems/pf2e/adapter.js'),
@@ -63,7 +62,6 @@ const tools = [
   ...new CampaignManagementTools(foundryClient, logger).getToolDefinitions(),
   ...new OwnershipTools({ foundryClient, logger }).getToolDefinitions(),
   ...new TokenManipulationTools({ foundryClient, logger }).getToolDefinitions(),
-  ...new MapGenerationTools({ foundryClient, logger, backendComfyUIHandlers: {} }).getToolDefinitions(),
 ];
 
 if (!tools.length) {
