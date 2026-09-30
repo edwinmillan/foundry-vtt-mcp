@@ -20,7 +20,7 @@ npm test -w @foundry-mcp/server -- -t "test name"
 
 npm run version:check      # all 5 manifests must share one version (enforced in CI)
 npm run test:mcp:schema    # tool-schema smoke test; build the server first
-npm run bundle:server      # esbuild -> dist/index.bundle.cjs + dist/backend.bundle.cjs (used by installers)
+npm run bundle:server      # esbuild -> dist/index.bundle.cjs + dist/backend.bundle.cjs (release artifact)
 ```
 
 Note: `npm test -w @foundry-mcp/server` runs vitest in watch mode; pass `run` or use `npx vitest run` for one-shot.
@@ -29,13 +29,12 @@ Note: `npm test -w @foundry-mcp/server` runs vitest in watch mode; pass `run` or
 
 ```
 Claude Desktop ─stdio─> index.ts (wrapper) ─TCP 127.0.0.1:31414─> backend.ts ─WS/WebRTC :31415─> Foundry module (browser, GM client)
-                                                                      └─> ComfyUI (map generation, optional)
 ```
 
 ### MCP server (`packages/mcp-server`) is two processes
 
 - `src/index.ts` is the thin MCP stdio server Claude Desktop launches. It forwards `tools/list` and `tools/call` over a JSON-lines control socket on port 31414, spawning `backend.js` if nothing is listening.
-- `src/backend.ts` is the long-lived singleton (guarded by a lock file, `lock.ts`). It owns the Foundry connection on port 31415 (`foundry-connector.ts`, WebSocket for local, `webrtc-peer.ts` for remote), the ComfyUI client and job queue, and all tool instances. Multiple Claude windows share one backend.
+- `src/backend.ts` is the long-lived singleton (guarded by a lock file, `lock.ts`). It owns the Foundry connection on port 31415 (`foundry-connector.ts`, WebSocket for local, `webrtc-peer.ts` for remote) and all tool instances. Multiple Claude windows share one backend.
 - Logs go to `os.tmpdir()/foundry-mcp-server/` (`wrapper.log` etc.), not stdout: stdout belongs to the MCP protocol.
 
 ### Adding or changing a tool
@@ -59,4 +58,8 @@ So a new capability usually spans: a tool class + `backend.ts` wiring (server) a
 
 ### Versioning and releases
 
-Bump the version in all five manifests together (root, `shared`, `mcp-server`, `foundry-module` package.json, plus `packages/foundry-module/module.json`); `npm run version:check` and the `version-consistency` workflow fail otherwise. Installers are built by `.github/workflows/build-complete-release.yml` (Windows NSIS via `installer/`) using the bundled server.
+Bump the version in all five manifests together (root, `shared`, `mcp-server`, `foundry-module` package.json, plus `packages/foundry-module/module.json`); `npm run version:check` and the `version-consistency` workflow fail otherwise. Pushing a `v*` tag runs `.github/workflows/release.yml`, which attaches `foundry-vtt-mcp.zip`, `module.json`, and a server bundle zip to the GitHub release (`module.json`'s manifest/download URLs point at `releases/latest/download/`).
+
+## Local-only dependencies
+
+This fork deliberately avoids runtime dependencies on third-party hosted services: no map generation/ComfyUI, no installers that download runtimes or models, no default public STUN servers, and no publishing to the Foundry package registry. Keep new features within that constraint.

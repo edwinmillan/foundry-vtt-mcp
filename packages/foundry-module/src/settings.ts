@@ -63,130 +63,6 @@ export class ModuleSettings {
       restricted: true,
     });
 
-    // Map Generation Service submenu
-    (game.settings as any).registerMenu(this.moduleId, 'mapGenerationSettings', {
-      name: 'Map Generation Service Configuration',
-      label: 'Configure Map Generation',
-      hint: 'Configure your map generation service for AI-powered battlemap creation. Currently supports ComfyUI installations with plans for future cloud services.',
-      icon: 'fas fa-cogs',
-      type: class extends FormApplication {
-        static get defaultOptions() {
-          return foundry.utils.mergeObject(super.defaultOptions, {
-            title: 'Map Generation Service Settings',
-            template: `modules/${MODULE_ID}/templates/comfyui-settings.html`,
-            width: 500,
-            height: 'auto',
-            resizable: false,
-            closeOnSubmit: false,
-          } as any);
-        }
-
-        getData(): any {
-          return {
-            autoStartService: game.settings.get(MODULE_ID, 'mapGenAutoStart') || true,
-            mapGenQuality: game.settings.get(MODULE_ID, 'mapGenQuality') || 'low',
-            connectionStatus: this.getConnectionStatus(),
-            connectionStatusText: this.getConnectionStatusText(),
-          };
-        }
-
-        getConnectionStatus(): string {
-          const bridge = (globalThis as any).foundryMCPBridge;
-          return bridge?.comfyuiManager ? 'unknown' : 'stopped';
-        }
-
-        getConnectionStatusText(): string {
-          return 'Click "Check Status" to verify service';
-        }
-
-        activateListeners(html: JQuery) {
-          super.activateListeners(html);
-
-          // Service control buttons
-          html.find('#check-status-btn').click(async () => {
-            await this.checkServiceStatus();
-          });
-
-          html.find('#start-service-btn').click(async () => {
-            await this.startService();
-          });
-
-          html.find('#stop-service-btn').click(async () => {
-            await this.stopService();
-          });
-        }
-
-        async checkServiceStatus() {
-          const bridge = (globalThis as any).foundryMCPBridge;
-          if (bridge?.comfyuiManager) {
-            try {
-              const status = await bridge.comfyuiManager.checkStatus();
-              this.updateStatusDisplay(status);
-            } catch (error) {
-              console.error('Status check failed:', error);
-              this.updateStatusDisplay({ status: 'error', message: 'Status check failed' });
-            }
-          }
-        }
-
-        async startService() {
-          const bridge = (globalThis as any).foundryMCPBridge;
-          if (bridge?.comfyuiManager) {
-            try {
-              const result = await bridge.comfyuiManager.startService();
-              this.updateStatusDisplay(result);
-            } catch (error) {
-              console.error('Service start failed:', error);
-              this.updateStatusDisplay({ status: 'error', message: 'Service start failed' });
-            }
-          }
-        }
-
-        async stopService() {
-          const bridge = (globalThis as any).foundryMCPBridge;
-          if (bridge?.comfyuiManager) {
-            try {
-              const result = await bridge.comfyuiManager.stopService();
-              this.updateStatusDisplay(result);
-            } catch (error) {
-              console.error('Service stop failed:', error);
-              this.updateStatusDisplay({ status: 'error', message: 'Service stop failed' });
-            }
-          }
-        }
-
-        updateStatusDisplay(status: any) {
-          const statusElement = this.element.find('#connection-status');
-          const statusText = this.element.find('#status-text');
-
-          // Remove all status classes
-          statusElement.removeClass('running stopped starting error unknown');
-
-          // Add current status class
-          statusElement.addClass(status.status);
-          statusText.text(this.getStatusText(status.status));
-        }
-
-        getStatusText(status: string): string {
-          const statusMap: { [key: string]: string } = {
-            running: 'Service Running',
-            stopped: 'Service Stopped',
-            starting: 'Service Starting...',
-            error: 'Service Error',
-            unknown: 'Status Unknown',
-          };
-          return statusMap[status] || 'Unknown';
-        }
-
-        async _updateObject(_event: Event, formData: any) {
-          await game.settings.set(MODULE_ID, 'mapGenAutoStart', formData.autoStartService);
-          await game.settings.set(MODULE_ID, 'mapGenQuality', formData.mapGenQuality);
-          ui.notifications?.info('Map generation service settings saved successfully');
-        }
-      },
-      restricted: true,
-    });
-
     // ============================================================================
     // SECTION 1: BASIC SETTINGS
     // ============================================================================
@@ -285,30 +161,6 @@ export class ModuleSettings {
       default: true,
     });
 
-    // Map Generation Service settings (configured via submenu only)
-    // ComfyUI always runs on localhost:31411 (same machine as MCP server)
-    game.settings.register(this.moduleId, 'mapGenAutoStart', {
-      name: 'Auto-start Map Generation Service',
-      scope: 'world',
-      config: false, // Hidden from main config, accessible via submenu only
-      type: Boolean,
-      default: true,
-    });
-
-    game.settings.register(this.moduleId, 'mapGenQuality', {
-      name: 'Generation Quality',
-      hint: 'Higher quality = better detail but slower generation. Generation time depends on your hardware.',
-      scope: 'world',
-      config: false, // Hidden from main config, accessible via submenu only
-      type: String,
-      choices: {
-        low: 'Low',
-        medium: 'Medium',
-        high: 'High',
-      },
-      default: 'low',
-    });
-
     // ============================================================================
     // SECTION 4: CONNECTION BEHAVIOR
     // ============================================================================
@@ -324,7 +176,7 @@ export class ModuleSettings {
 
     game.settings.register(this.moduleId, 'informationNotifications', {
       name: 'Show Information Notifications',
-      hint: 'Display informational toasts such as creature index builds and map generation service status. Warnings and errors are always shown.',
+      hint: 'Display informational toasts such as creature index builds. Warnings and errors are always shown.',
       scope: 'world',
       config: true,
       type: Boolean,
