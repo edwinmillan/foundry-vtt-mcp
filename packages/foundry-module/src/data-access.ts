@@ -6270,7 +6270,7 @@ export class FoundryDataAccess {
         // Get the character for speaker info
         const character = characterId ? game.actors?.get(characterId) : null;
 
-        // Use the modern Foundry v13 approach with roll.toMessage()
+        // v13 only: 'whisper' is not a real roll mode, so applyRollMode leaves the whisper list alone
         const rollMode = isPublic ? 'publicroll' : 'whisper';
         const whisperTargets: string[] = [];
 
@@ -6296,11 +6296,15 @@ export class FoundryDataAccess {
           ...(whisperTargets.length > 0 ? { whisper: whisperTargets } : {}),
         };
 
-        // Use roll.toMessage() with proper rollMode
+        // v14 replaced rollMode with messageMode and throws on unknown modes like 'whisper';
+        // its 'gm' mode keeps a nonempty whisper list, so the target still sees private rolls
+        const modeOption = (CONFIG as any).ChatMessage?.modes
+          ? { messageMode: isPublic ? 'public' : 'gm' }
+          : { rollMode };
         await roll.toMessage(messageData, {
           create: true,
-          rollMode,
-        });
+          ...modeOption,
+        } as any);
 
         // Update the ChatMessage to reflect rolled state
         const buttonId = button.data('button-id');
@@ -6324,7 +6328,9 @@ export class FoundryDataAccess {
         }
       } catch (error) {
         console.error(`[${MODULE_ID}] Error executing roll:`, error);
-        ui.notifications?.error('Failed to execute roll');
+        ui.notifications?.error(
+          `Failed to execute roll: ${error instanceof Error ? error.message : String(error)}`
+        );
 
         // Re-enable button on error so user can try again
         button.prop('disabled', false);
