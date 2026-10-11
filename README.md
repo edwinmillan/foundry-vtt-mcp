@@ -92,6 +92,7 @@ Once connected, ask Claude Desktop:
 - **Fate Core Official Support**: Read aspects, skills on the Fate ladder, stunts, stress, consequences and fate points; edit all of them on existing characters; roll 4dF + skill (with stunts, invokes and a difficulty for shifts and outcome); and manage situation and game aspects with free invokes in Fate Utilities
 - **Anima Beyond Fantasy (abfalter) Support**: Read characteristics, resistances, combat values, life points, fatigue, secondary abilities, and magic/psychic/ki blocks; track resources and edit base values on existing characters; and roll with the system's rules (open rolls, fumbles, characteristic d10 checks, resistance checks, difficulty ladder) including attack-vs-defense resolution with damage percentage or counterattack bonus
 - **Calendaria Integration**: When the [Calendaria](https://github.com/Sayshal/Calendaria) module is active, read the in-world date, time, season, moons and weather; advance or set time; manage calendar notes; and set or forecast weather
+- **Global Progress Clocks Integration**: When the [Global Progress Clocks](https://github.com/CarlosFdez/global-progress-clocks) module is active, list, create, tick, edit, reorder and delete the clocks, points counters and trackers shown to the table
 - **WFRP4e Support**: Character reading plus editing — update characteristics, wounds, skills and careers, and add or remove items on existing actors
 - **Generic Actor CRUD**: `manage-actors` creates, updates, and deletes actors of any type on any system; also updates and deletes embedded items
 - **Character Management**: Access stats, abilities, inventory, and detailed entity information
@@ -161,6 +162,8 @@ Once connected, ask Claude Desktop:
 - **52** calendaria-manage-weather (get / forecast / presets / set / generate / clear — Requires Calendaria)
 - **53** abf-update-character (Anima Beyond Fantasy / abfalter Only)
 - **54** abf-roll (Anima Beyond Fantasy / abfalter Only)
+- **55** progress-clocks-list (Requires Global Progress Clocks)
+- **56** progress-clocks-manage (create / update / tick / delete / move — Requires Global Progress Clocks)
 
 ## Settings
 

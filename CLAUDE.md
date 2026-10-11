@@ -58,7 +58,7 @@ So a new capability usually spans: a tool class + `backend.ts` wiring (server) a
 
 ### Optional module integrations
 
-Integrations with other Foundry modules (currently Calendaria) go through that module's public API, gated on `game.modules.get(id)?.active`. Calendaria lives in `packages/foundry-module/src/calendaria.ts` (queries registered in `queries.ts`) and `src/tools/calendaria.ts` on the server.
+Integrations with other Foundry modules (currently Calendaria and Global Progress Clocks) go through that module's public API, gated on `game.modules.get(id)?.active`. Each has a module-side access class in `packages/foundry-module/src/<name>.ts` (queries registered in `queries.ts`) and a tool class in `src/tools/<name>.ts` on the server: `calendaria.ts` (`CALENDARIA.api`) and `progress-clocks.ts` (`window.clockDatabase`, whose `addClock`/`delete`/`move` don't return their settings write, so the access class polls until the change lands).
 
 ### Versioning and releases
 

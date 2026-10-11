@@ -1,14 +1,17 @@
 import { MODULE_ID } from './constants.js';
 import { FoundryDataAccess } from './data-access.js';
 import { CalendariaAccess } from './calendaria.js';
+import { ProgressClocksAccess } from './progress-clocks.js';
 
 export class QueryHandlers {
   public dataAccess: FoundryDataAccess;
   private calendaria: CalendariaAccess;
+  private progressClocks: ProgressClocksAccess;
 
   constructor() {
     this.dataAccess = new FoundryDataAccess();
     this.calendaria = new CalendariaAccess();
+    this.progressClocks = new ProgressClocksAccess();
   }
 
   /**
@@ -115,6 +118,11 @@ export class QueryHandlers {
       this.handleManageCalendariaNotes.bind(this);
     CONFIG.queries[`${modulePrefix}.manageCalendariaWeather`] =
       this.handleManageCalendariaWeather.bind(this);
+
+    // Global Progress Clocks module queries
+    CONFIG.queries[`${modulePrefix}.listProgressClocks`] = this.handleListProgressClocks.bind(this);
+    CONFIG.queries[`${modulePrefix}.manageProgressClocks`] =
+      this.handleManageProgressClocks.bind(this);
 
     // Token manipulation queries
     CONFIG.queries[`${modulePrefix}.moveToken`] = this.handleMoveToken.bind(this);
@@ -1094,6 +1102,46 @@ export class QueryHandlers {
     } catch (error) {
       throw new Error(
         `Failed to manage Calendaria weather: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * List Global Progress Clocks entries (clocks, points, trackers). GM-only.
+   */
+  async handleListProgressClocks(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      return this.progressClocks.listClocks(data ?? {});
+    } catch (error) {
+      throw new Error(
+        `Failed to list progress clocks: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    }
+  }
+
+  /**
+   * Create, update, tick, delete or reorder Global Progress Clocks entries. GM-only.
+   */
+  async handleManageProgressClocks(data: any): Promise<any> {
+    try {
+      const gmCheck = this.validateGMAccess();
+      if (!gmCheck.allowed) {
+        return { error: 'Access denied', success: false };
+      }
+
+      this.dataAccess.validateFoundryState();
+
+      return await this.progressClocks.manageClocks(data ?? {});
+    } catch (error) {
+      throw new Error(
+        `Failed to manage progress clocks: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     }
   }

@@ -40,6 +40,7 @@ import { FateAspectTools } from './tools/fate/aspects.js';
 import { AbfUpdateCharacterTools } from './tools/abfalter/update-character.js';
 import { AbfRollTools } from './tools/abfalter/roll.js';
 import { CalendariaTools } from './tools/calendaria.js';
+import { ProgressClocksTools } from './tools/progress-clocks.js';
 
 import { TokenManipulationTools } from './tools/token-manipulation.js';
 
@@ -243,6 +244,7 @@ async function startBackend(): Promise<void> {
   const abfRollTools = new AbfRollTools({ foundryClient, logger });
 
   const calendariaTools = new CalendariaTools({ foundryClient, logger });
+  const progressClocksTools = new ProgressClocksTools({ foundryClient, logger });
 
   const allTools = [
     ...characterTools.getToolDefinitions(),
@@ -281,6 +283,7 @@ async function startBackend(): Promise<void> {
     ...abfRollTools.getToolDefinitions(),
 
     ...calendariaTools.getToolDefinitions(),
+    ...progressClocksTools.getToolDefinitions(),
 
     ...tokenManipulationTools.getToolDefinitions(),
 
@@ -470,6 +473,18 @@ async function startBackend(): Promise<void> {
 
                 case 'calendaria-manage-weather':
                   result = await calendariaTools.handleManageWeather(args);
+
+                  break;
+
+                // Global Progress Clocks module tools
+
+                case 'progress-clocks-list':
+                  result = await progressClocksTools.handleList(args);
+
+                  break;
+
+                case 'progress-clocks-manage':
+                  result = await progressClocksTools.handleManage(args);
 
                   break;
 

@@ -1,3 +1,12 @@
+## Unreleased
+
+### New Features
+
+- **Global Progress Clocks integration** (works in any game system when the [Global Progress Clocks](https://github.com/CarlosFdez/global-progress-clocks) module is active)
+  - `progress-clocks-list`: every clock, points counter and tracker in display order, with value/max, completion, privacy and color, plus the configured colors and enabled entry types
+  - `progress-clocks-manage`: create clocks (1-128 segments), points (-99 to 99) and trackers (1-12 boxes); tick them up or down; rename, resize, recolor or hide them from players; reorder and delete them. Entries are referenced by id or name
+  - Changes respect the Allow Write Operations setting
+
 ## v0.11.1 (2026-09-30)
 
 ### Fixes
